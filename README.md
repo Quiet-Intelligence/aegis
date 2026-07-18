@@ -190,32 +190,32 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 
 **Prerequisites:**
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
-- Clang/LLVM for eBPF compilation.
-- Go 1.22+ installed on the host.
+- For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and headers via our setup script.
 
-**1. Clone and Build the BPF Objects:**
+**1. The "Everything" Command (Recommended for End-Users):**
+Aegis ships with a unified setup and build pipeline via a single command. From a fresh clone, this will install all required host dependencies, compile the eBPF kernel objects, build the Go binaries, and launch our beautiful Terminal UI (TUI):
 ```bash
-git clone https://github.com/aegis-security/aegis.git
-cd aegis/ebpf
-make clean && make
+git clone https://github.com/Quiet-Intelligence/aegis.git
+cd aegis
+make everything
 ```
 
-**2. Compile the Go Daemon:**
+**2. Manual Build (For Developers):**
+If you prefer to compile manually without the automated dependency installation:
 ```bash
-cd ..
-go env -w CGO_ENABLED=1
-go build -o aegisd cmd/aegisd/main.go
-go build -o aegisctl cmd/aegisctl/main.go
+# Compile eBPF Objects
+make ebpf
+
+# Build daemon, CLI, and TUI binaries
+make build
 ```
 
-**3. Run the Demonstration:**
-*Ensure `OPENAI_API_KEY` is exported in your environment.*
+**3. Running the Demonstration via TUI:**
+Aegis utilizes the incredible `charmbracelet/bubbletea` framework for a beautiful, reactive Terminal UI. You do not need a desktop GUI to visualize the telemetry feed.
 ```bash
-# Terminal 1: Boot the Daemon
-sudo ./aegisd
-
-# Terminal 2: Trigger the Defanged Exploit Pattern
-./demo/defanged_worktree_demo.sh
+# Start the Aegis TUI
+make tui
+./bin/aegis-tui
 ```
 
 ## 9. Results, Benchmarks, and Evaluation
