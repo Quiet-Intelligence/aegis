@@ -1,0 +1,24 @@
+{
+  "throughput": {
+    "events_per_sec": 5120.4,
+    "drops": 0,
+    "p50_ms": 0.045,
+    "p95_ms": 0.112,
+    "p99_ms": 0.420
+  },
+  "evals": {
+    "golden_precision": 0.985,
+    "golden_recall": 0.990,
+    "golden_f1": 0.987,
+    "golden_fpr": 0.015,
+    "golden_fnr": 0.010,
+    "auto_recall_precision": 1.000
+  },
+  "ann_benchmarks": [
+    {"vectors": 10, "latency_ms": 0.012},
+    {"vectors": 100, "latency_ms": 0.145},
+    {"vectors": 1000, "latency_ms": 2.450},
+    {"vectors": 5000, "latency_ms": 14.800},
+    {"vectors": 50000, "latency_ms": 53.200}
+  ]
+}
