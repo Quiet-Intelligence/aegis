@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,9 +23,11 @@ type AuditLog struct {
 type Enforcer struct {
 	DeniedPathsMap *ebpf.Map
 	LogFile        *os.File
+	db             *sql.DB
+	repoID         int64
 }
 
-func NewEnforcer(logPath string, coll *ebpf.Collection) (*Enforcer, error) {
+func NewEnforcer(logPath string, coll *ebpf.Collection, db *sql.DB, repoID int64) (*Enforcer, error) {
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
@@ -35,10 +38,36 @@ func NewEnforcer(logPath string, coll *ebpf.Collection) (*Enforcer, error) {
 		m = coll.Maps["denied_paths_map"]
 	}
 
-	return &Enforcer{
+	e := &Enforcer{
 		LogFile:        f,
 		DeniedPathsMap: m,
-	}, nil
+		db:             db,
+		repoID:         repoID,
+	}
+	
+	e.SyncPolicies()
+	
+	return e, nil
+}
+
+func (e *Enforcer) SyncPolicies() {
+	if e.db == nil || e.DeniedPathsMap == nil {
+		return
+	}
+	rows, err := e.db.Query(`SELECT match_value FROM policy_entries WHERE repo_id = ? AND match_type = 'path' AND revoked_at IS NULL AND expires_at > ?`, e.repoID, time.Now())
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var path string
+		rows.Scan(&path)
+		var pathBuf [256]byte
+		copy(pathBuf[:], path)
+		val := uint32(1)
+		e.DeniedPathsMap.Put(&pathBuf, &val)
+	}
 }
 
 func (e *Enforcer) Enforce(sessionID string, ev telemetry.Event, decision adjudicator.Decision, rationale string) {
@@ -54,7 +83,7 @@ func (e *Enforcer) Enforce(sessionID string, ev telemetry.Event, decision adjudi
 	e.LogFile.Write(append(b, '\n'))
 
 	if decision == adjudicator.DecisionDeny && e.DeniedPathsMap != nil {
-		if ev.Type == "file_open" {
+		if ev.Type == "file_open" && ev.FileOpen != nil {
 			var pathBuf [256]byte
 			copy(pathBuf[:], ev.FileOpen.GetPath())
 			val := uint32(1)

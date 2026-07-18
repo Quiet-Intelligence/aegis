@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"sync"
@@ -36,14 +37,18 @@ type FlaggedEvent struct {
 }
 
 type Scorer struct {
+	db           *sql.DB
+	repoID       int64
 	graphs       map[string]*SessionGraph
 	mu           sync.Mutex
 	flaggedChan  chan FlaggedEvent
 	workspaceDir string
 }
 
-func NewScorer(workspaceDir string) *Scorer {
+func NewScorer(db *sql.DB, repoID int64, workspaceDir string) *Scorer {
 	return &Scorer{
+		db:           db,
+		repoID:       repoID,
 		graphs:       make(map[string]*SessionGraph),
 		flaggedChan:  make(chan FlaggedEvent, 100),
 		workspaceDir: workspaceDir,
@@ -104,21 +109,42 @@ func (s *Scorer) processEvent(ev telemetry.Event) {
 		})
 	}
 
-	// Rule 1: file_open outside allow-listed workspace prefix
-	if ev.Type == "file_open" {
-		if !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") {
-			k := 5
-			if len(sg.Events) < k {
-				k = len(sg.Events)
-			}
-			contextEvents := sg.Events[len(sg.Events)-k:]
+	// Prompt 7: baseline-aware scorer
+	var emaValue float64
+	err := s.db.QueryRow("SELECT ema_value FROM semantic_baseline WHERE repo_id = ? AND feature_key = 'flagged_event_count'", s.repoID).Scan(&emaValue)
 
-			s.flaggedChan <- FlaggedEvent{
-				SessionID: sessionID,
-				Event:     ev,
-				Context:   contextEvents,
-				Rule:      "File access outside workspace sandbox",
+	isFlagged := false
+	ruleName := ""
+
+	if err == sql.ErrNoRows {
+		// Cold start fallback
+		if ev.Type == "file_open" {
+			if !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") {
+				isFlagged = true
+				ruleName = "File access outside workspace sandbox (Cold Start)"
 			}
+		}
+	} else if err == nil {
+		// Mock EMA deviation check
+		currentScore := float64(len(sg.Events))
+		if currentScore > emaValue*2.0 {
+			isFlagged = true
+			ruleName = "High deviation from semantic baseline"
+		}
+	}
+
+	if isFlagged {
+		k := 5
+		if len(sg.Events) < k {
+			k = len(sg.Events)
+		}
+		contextEvents := sg.Events[len(sg.Events)-k:]
+
+		s.flaggedChan <- FlaggedEvent{
+			SessionID: sessionID,
+			Event:     ev,
+			Context:   contextEvents,
+			Rule:      ruleName,
 		}
 	}
 }

@@ -2,16 +2,22 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"aegis/internal/memory"
+	"aegis/internal/memory/consolidate"
+	"aegis/internal/memory/embed"
+	"aegis/internal/memory/episodic"
 	"aegis/pkg/adjudicator"
 	"aegis/pkg/graph"
 	"aegis/pkg/policy"
 	"aegis/pkg/telemetry"
 	"github.com/cilium/ebpf"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -20,6 +26,19 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// 0. Initialize SQLite DB
+	db, err := sql.Open("sqlite3", "aegis.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	if err := memory.InitSchema(db); err != nil {
+		panic(err)
+	}
+
+	repoID := int64(1) // Mock
+
 	// 1. Initialize Channels
 	eventChan := make(chan telemetry.Event, 1000)
 
@@ -27,20 +46,30 @@ func main() {
 	targetCgroupId := uint64(12345) // Mock
 	ebpfLayer, err := telemetry.InitLayer(ctx, targetCgroupId, eventChan)
 	if err != nil {
-		fmt.Printf("Warning: eBPF initialization incomplete (expected on Windows): %v\n", err)
+		fmt.Printf("Warning: eBPF initialization incomplete: %v\n", err)
 	}
 	defer ebpfLayer.Close()
 
 	// 3. Start Graph Scorer
 	workspaceDir := "/workspace"
-	scorer := graph.NewScorer(workspaceDir)
+	scorer := graph.NewScorer(db, repoID, workspaceDir)
 	go scorer.Consume(ctx, eventChan)
 
-	// 4. Initialize Adjudicator & Policy Enforcer
-	adj := &adjudicator.OpenAIAdjudicator{
+	// 4. Initialize Embedder and Store
+	embedder := &embed.MockEmbedder{}
+	store := episodic.NewStore(db, embedder)
+
+	// 5. Initialize Adjudicator (Retrieval Augmented)
+	baseLLM := &adjudicator.OpenAIAdjudicator{
 		APIKey: os.Getenv("OPENAI_API_KEY"),
 		URL:    "https://api.openai.com/v1/chat/completions",
 		Model:  "gpt-4",
+	}
+	
+	adj := &episodic.RetrievalAugmentedAdjudicator{
+		LLM:      baseLLM,
+		Store:    store,
+		Embedder: embedder,
 	}
 
 	var firstColl *ebpf.Collection
@@ -48,18 +77,19 @@ func main() {
 		firstColl = ebpfLayer.Collections[0]
 	}
 
-	enforcer, err := policy.NewEnforcer("audit.jsonl", firstColl)
+	// 6. Initialize Policy Enforcer
+	enforcer, err := policy.NewEnforcer("audit.jsonl", firstColl, db, repoID)
 	if err != nil {
 		fmt.Printf("Failed to create enforcer: %v\n", err)
 		return
 	}
 
-	// 5. Adjudication Loop
+	// 7. Adjudication Loop
 	go func() {
 		for flagged := range scorer.Flagged() {
 			fmt.Printf("[FLAGGED] Session: %s, Rule: %s\n", flagged.SessionID, flagged.Rule)
 			
-			decision, rationale, err := adj.Adjudicate(ctx, flagged)
+			decision, rationale, err := adj.Adjudicate(ctx, repoID, flagged)
 			if err != nil {
 				fmt.Printf("Adjudication Error: %v\n", err)
 				continue
@@ -70,10 +100,11 @@ func main() {
 		}
 	}()
 
-	// 6. Graceful Shutdown
+	// 8. Graceful Shutdown
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
 
-	fmt.Println("Shutting down aegisd...")
+	fmt.Println("Shutting down aegisd... Running consolidation job")
+	consolidate.SessionEnd(context.Background(), db, repoID, "demo-session-id", 0.2)
 }
