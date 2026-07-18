@@ -1,13 +1,13 @@
 package adjudicator
 
 import (
+	"aegis/pkg/graph"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
-	"aegis/pkg/graph"
 )
 
 type Adjudicator interface {
@@ -15,9 +15,10 @@ type Adjudicator interface {
 }
 
 type OpenAIAdjudicator struct {
-	APIKey string
-	URL    string
-	Model  string
+	APIKey  string
+	URL     string
+	Model   string
+	Headers map[string]string // optional extra headers from the provider preset (e.g. X-Title)
 }
 
 func (a *OpenAIAdjudicator) Adjudicate(ctx context.Context, repoID int64, event graph.FlaggedEvent) (Decision, string, error) {
@@ -36,8 +37,13 @@ func (a *OpenAIAdjudicator) Adjudicate(ctx context.Context, repoID int64, event 
 
 	body, _ := json.Marshal(payload)
 	req, _ := http.NewRequestWithContext(ctx, "POST", a.URL, bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+a.APIKey)
+	if a.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+a.APIKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range a.Headers {
+		req.Header.Set(k, v)
+	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)

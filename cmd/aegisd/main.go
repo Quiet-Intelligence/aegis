@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"aegis/pkg/adjudicator"
 	"aegis/pkg/graph"
 	"aegis/pkg/policy"
+	"aegis/pkg/provider"
 	"aegis/pkg/telemetry"
 	"github.com/cilium/ebpf"
 	_ "github.com/mattn/go-sqlite3"
@@ -24,6 +26,10 @@ import (
 
 func main() {
 	fmt.Println("Starting Aegis Control Plane (aegisd)...")
+
+	// Fill in missing config from aegis.env/.env before anything reads
+	// AEGIS_* vars. Required under sudo, which strips user exports.
+	provider.LoadEnvFile()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -59,7 +65,7 @@ func main() {
 	// 3. Start Graph Scorer
 	workspaceDir := "/workspace"
 	scorer := graph.NewScorer(db, repoID, workspaceDir)
-	
+
 	// Start consuming both channels
 	go scorer.Consume(ctx, chConfig.CriticalChan)
 	go scorer.Consume(ctx, chConfig.TelemetryChan)
@@ -68,40 +74,48 @@ func main() {
 	embedder := &embed.MockEmbedder{}
 	store := episodic.NewStore(db, embedder)
 
-	// 5. Initialize Adjudicators from Environment Variables
-	apiURL := os.Getenv("AEGIS_LLM_URL")
-	if apiURL == "" {
-		apiURL = "https://api.openai.com/v1/chat/completions"
+	// 5. Resolve LLM provider and models (providers.json + env)
+	registry, err := provider.Load()
+	if err != nil {
+		fmt.Printf("FATAL: %v\n", err)
+		os.Exit(1)
 	}
-	apiKey := os.Getenv("AEGIS_LLM_KEY")
-	
-	cheapModel := os.Getenv("AEGIS_CHEAP_MODEL")
-	if cheapModel == "" {
-		cheapModel = "gpt-3.5-turbo"
+	cfg, err := registry.Resolve()
+	if err != nil {
+		fmt.Printf("FATAL: %v\n", err)
+		os.Exit(1)
 	}
-	
-	flagshipModel := os.Getenv("AEGIS_FLAGSHIP_MODEL")
-	if flagshipModel == "" {
-		flagshipModel = "gpt-4"
+
+	fmt.Printf("LLM provider: %s (%s)\n", cfg.ProviderName, cfg.URL)
+	fmt.Printf("Models: cheap=%s flagship=%s\n", cfg.CheapModel, cfg.FlagshipModel)
+	if cfg.Auth == "none" {
+		fmt.Println("API key: not required for this provider")
+	} else if cfg.Key == "" {
+		fmt.Printf("WARNING: no API key found (checked: %s) — adjudications will fail.\n",
+			strings.Join(cfg.KeyEnvsTried, ", "))
+	} else {
+		fmt.Printf("API key: %s (from %s)\n", cfg.MaskedKey(), cfg.KeySource)
 	}
 
 	cheapLLM := &adjudicator.OpenAIAdjudicator{
-		APIKey: apiKey,
-		URL:    apiURL,
-		Model:  cheapModel,
+		APIKey:  cfg.Key,
+		URL:     cfg.URL,
+		Model:   cfg.CheapModel,
+		Headers: cfg.Headers,
 	}
 
 	flagshipLLM := &adjudicator.OpenAIAdjudicator{
-		APIKey: apiKey,
-		URL:    apiURL,
-		Model:  flagshipModel,
+		APIKey:  cfg.Key,
+		URL:     cfg.URL,
+		Model:   cfg.FlagshipModel,
+		Headers: cfg.Headers,
 	}
 
 	cascade := &proxy.RLMCascade{
 		CheapLLM:    cheapLLM,
 		FlagshipLLM: flagshipLLM,
 	}
-	
+
 	// Wrap with AMLL (Episodic Memory)
 	adj := &episodic.RetrievalAugmentedAdjudicator{
 		LLM:      cascade,
@@ -125,7 +139,7 @@ func main() {
 	go func() {
 		for flagged := range scorer.Flagged() {
 			fmt.Printf("[FLAGGED] Session: %s, Rule: %s\n", flagged.SessionID, flagged.Rule)
-			
+
 			decision, rationale, err := adj.Adjudicate(ctx, repoID, flagged)
 			if err != nil {
 				fmt.Printf("Adjudication Error: %v\n", err)
