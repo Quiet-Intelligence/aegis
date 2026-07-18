@@ -7,16 +7,25 @@ import (
 	"time"
 
 	"aegis/internal/bandit"
+	"aegis/pkg/provider"
 	_ "github.com/mattn/go-sqlite3" // needed for aegisctl standalone
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: aegisctl <policy|bandit> [args...]")
+		fmt.Println("Usage: aegisctl <policy|bandit|provider> [args...]")
 		os.Exit(1)
 	}
 
 	command := os.Args[1]
+
+	// Provider commands work without a database; load aegis.env first so
+	// `current`/`models` see the same config the daemon would.
+	if command == "provider" {
+		provider.LoadEnvFile()
+		handleProvider()
+		return
+	}
 
 	db, err := sql.Open("sqlite3", "aegis.db")
 	if err != nil {
