@@ -1,0 +1,30 @@
+# Binaries and Object Files
+bin/
+ebpf/*.o
+aegisd
+aegisctl
+aegis-tui
+
+# Databases
+*.db
+aegis.db
+*.sqlite
+*.sqlite3
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test/Eval output
+eval_output.txt
+evals/results/
+docs/images/
+
+# Vendor
+vendor/
