@@ -1,15 +1,26 @@
 # Binaries and Object Files
 bin/
 ebpf/*.o
-aegisd
-aegisctl
-aegis-tui
+/aegisd
+/aegisctl
+/aegis-tui
 
 # Databases
 *.db
 aegis.db
 *.sqlite
 *.sqlite3
+
+# LLM related
+.codex
+
+# Secrets / local config
+.env
+aegis.env
+
+# Runtime artifacts (created by running aegisd from repo root)
+audit.jsonl
+ebpf/vmlinux.h
 
 # OS specific files
 .DS_Store
