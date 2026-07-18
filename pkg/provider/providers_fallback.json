@@ -1,0 +1,50 @@
+{
+  "providers": {
+    "openrouter": {
+      "url": "https://openrouter.ai/api/v1/chat/completions",
+      "models_url": "https://openrouter.ai/api/v1/models",
+      "key_env": "AEGIS_LLM_KEY",
+      "auth": "bearer",
+      "headers": { "X-Title": "aegisd" },
+      "default_model": "deepseek/deepseek-v4-flash",
+      "cheap_model": "deepseek/deepseek-v4-flash",
+      "flagship_model": "deepseek/deepseek-v4-flash"
+    },
+    "openai": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "models_url": "https://api.openai.com/v1/models",
+      "key_env": "OPENAI_API_KEY",
+      "auth": "bearer",
+      "cheap_model": "gpt-4o",
+      "flagship_model": "gpt-5.6-sol"
+    },
+    "groq": {
+      "url": "https://api.groq.com/openai/v1/chat/completions",
+      "models_url": "https://api.groq.com/openai/v1/models",
+      "key_env": "GROQ_API_KEY",
+      "auth": "bearer",
+      "cheap_model": "llama-3.1-8b-instant",
+      "flagship_model": "llama-3.3-70b-versatile"
+    },
+    "together": {
+      "url": "https://api.together.xyz/v1/chat/completions",
+      "models_url": "https://api.together.xyz/v1/models",
+      "key_env": "TOGETHER_API_KEY",
+      "auth": "bearer",
+      "cheap_model": "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+      "flagship_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+    },
+    "ollama": {
+      "url": "http://localhost:11434/v1/chat/completions",
+      "models_url": "http://localhost:11434/api/tags",
+      "auth": "none",
+      "cheap_model": "llama3.1:8b",
+      "flagship_model": "llama3.3:70b"
+    },
+    "custom": {
+      "url": "",
+      "auth": "bearer",
+      "comment": "Bring your own OpenAI-compatible endpoint. Set AEGIS_LLM_URL (and AEGIS_LLM_KEY if needed)."
+    }
+  }
+}
