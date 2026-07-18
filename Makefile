@@ -1,4 +1,4 @@
-.PHONY: all ebpf daemon cli build clean run test eval
+.PHONY: all ebpf daemon cli tui build clean run test eval everything
 
 # Define paths and variables
 EBPF_DIR = ebpf
@@ -6,6 +6,11 @@ CMD_DIR = cmd
 BIN_DIR = bin
 
 all: build
+
+everything: ebpf build tui
+	@echo "==> Everything built."
+	@echo "    Run the daemon : sudo ./$(BIN_DIR)/aegisd"
+	@echo "    Run the TUI    : ./$(BIN_DIR)/aegis-tui"
 
 ebpf:
 	@echo "==> Compiling eBPF objects..."
@@ -16,14 +21,19 @@ daemon:
 	go env -w GOOS=linux
 	go env -w CGO_ENABLED=1
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/aegisd $(CMD_DIR)/aegisd/main.go
+	go build -o $(BIN_DIR)/aegisd ./$(CMD_DIR)/aegisd
 
 cli:
 	@echo "==> Building aegisctl (Human-in-the-loop CLI)..."
 	go env -w GOOS=linux
 	go env -w CGO_ENABLED=1
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/aegisctl $(CMD_DIR)/aegisctl/main.go
+	go build -o $(BIN_DIR)/aegisctl ./$(CMD_DIR)/aegisctl
+
+tui:
+	@echo "==> Building aegis-tui (Terminal UI)..."
+	mkdir -p $(BIN_DIR)
+	go build -o $(BIN_DIR)/aegis-tui ./$(CMD_DIR)/aegis-tui
 
 build: ebpf daemon cli
 	@echo "==> Build complete. Binaries are in $(BIN_DIR)/"
