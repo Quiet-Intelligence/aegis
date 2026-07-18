@@ -4,6 +4,10 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_core_read.h>
 
+#ifndef AF_INET
+#define AF_INET 2
+#endif
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 /**
