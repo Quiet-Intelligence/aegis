@@ -13,6 +13,7 @@ import (
 	"aegis/internal/memory/consolidate"
 	"aegis/internal/memory/embed"
 	"aegis/internal/memory/episodic"
+	"aegis/internal/proxy"
 	"aegis/pkg/adjudicator"
 	"aegis/pkg/graph"
 	"aegis/pkg/policy"
@@ -73,9 +74,21 @@ func main() {
 		URL:    "https://api.openai.com/v1/chat/completions",
 		Model:  "gpt-4",
 	}
+
+	cheapLLM := &adjudicator.OpenAIAdjudicator{
+		APIKey: os.Getenv("OPENAI_API_KEY"),
+		URL:    "https://api.openai.com/v1/chat/completions",
+		Model:  "gpt-3.5-turbo",
+	}
+
+	cascadeProxy := &proxy.CascadeRouter{
+		CheapModel:    cheapLLM,
+		FlagshipModel: baseLLM,
+		Threshold:     10.0,
+	}
 	
 	adj := &episodic.RetrievalAugmentedAdjudicator{
-		LLM:      baseLLM,
+		LLM:      cascadeProxy,
 		Store:    store,
 		Embedder: embedder,
 	}
