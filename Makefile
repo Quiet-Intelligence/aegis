@@ -1,4 +1,4 @@
-.PHONY: all ebpf daemon cli tui build clean run test eval install-deps everything
+.PHONY: all ebpf daemon cli build clean run test eval
 
 # Define paths and variables
 EBPF_DIR = ebpf
@@ -25,23 +25,8 @@ cli:
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/aegisctl $(CMD_DIR)/aegisctl/main.go
 
-tui:
-	@echo "==> Building aegis-tui (Terminal UI)..."
-	go env -w GOOS=linux
-	go env -w CGO_ENABLED=1
-	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/aegis-tui $(CMD_DIR)/aegis-tui/main.go
-
-build: ebpf daemon cli tui
+build: ebpf daemon cli
 	@echo "==> Build complete. Binaries are in $(BIN_DIR)/"
-
-install-deps:
-	@echo "==> Installing host dependencies..."
-	bash scripts/install_deps.sh
-
-everything: install-deps build
-	@echo "==> Setup complete! Launching TUI..."
-	./$(BIN_DIR)/aegis-tui
 
 clean:
 	@echo "==> Cleaning up..."
