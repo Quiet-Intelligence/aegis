@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"aegis/internal/memory"
 	"aegis/internal/memory/consolidate"
@@ -39,12 +40,16 @@ func main() {
 
 	repoID := int64(1) // Mock
 
-	// 1. Initialize Channels
-	eventChan := make(chan telemetry.Event, 1000)
+	// 1. Initialize Channels (Prompt 3 - separate queues, fail-open/closed)
+	chConfig := telemetry.ChannelConfig{
+		CriticalChan:    make(chan *telemetry.Event, 1000), // file_open, exec
+		TelemetryChan:   make(chan *telemetry.Event, 1000), // net
+		CriticalTimeout: 10 * time.Millisecond,
+	}
 
 	// 2. Load eBPF Programs & Start Readers
 	targetCgroupId := uint64(12345) // Mock
-	ebpfLayer, err := telemetry.InitLayer(ctx, targetCgroupId, eventChan)
+	ebpfLayer, err := telemetry.InitLayer(ctx, targetCgroupId, chConfig)
 	if err != nil {
 		fmt.Printf("Warning: eBPF initialization incomplete: %v\n", err)
 	}
@@ -53,7 +58,10 @@ func main() {
 	// 3. Start Graph Scorer
 	workspaceDir := "/workspace"
 	scorer := graph.NewScorer(db, repoID, workspaceDir)
-	go scorer.Consume(ctx, eventChan)
+	
+	// Start consuming both channels
+	go scorer.Consume(ctx, chConfig.CriticalChan)
+	go scorer.Consume(ctx, chConfig.TelemetryChan)
 
 	// 4. Initialize Embedder and Store
 	embedder := &embed.MockEmbedder{}

@@ -26,13 +26,13 @@ type SessionGraph struct {
 	mu     sync.Mutex
 	Nodes  []Node
 	Edges  []Edge
-	Events []telemetry.Event
+	Events []*telemetry.Event
 }
 
 type FlaggedEvent struct {
 	SessionID string
-	Event     telemetry.Event
-	Context   []telemetry.Event
+	Event     *telemetry.Event
+	Context   []*telemetry.Event
 	Rule      string
 }
 
@@ -59,7 +59,7 @@ func (s *Scorer) Flagged() <-chan FlaggedEvent {
 	return s.flaggedChan
 }
 
-func (s *Scorer) Consume(ctx context.Context, eventChan <-chan telemetry.Event) {
+func (s *Scorer) Consume(ctx context.Context, eventChan <-chan *telemetry.Event) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -70,20 +70,30 @@ func (s *Scorer) Consume(ctx context.Context, eventChan <-chan telemetry.Event) 
 	}
 }
 
-func (s *Scorer) processEvent(ev telemetry.Event) {
+func (s *Scorer) processEvent(ev *telemetry.Event) {
 	var sessionID string
 	var resource string
 
 	switch ev.Type {
 	case "file_open":
-		sessionID = fmt.Sprintf("%d-%d", ev.FileOpen.Pid, ev.FileOpen.CgroupId)
-		resource = ev.FileOpen.GetPath()
+		if ev.FileOpen != nil {
+			sessionID = fmt.Sprintf("%d-%d", ev.FileOpen.Pid, ev.FileOpen.CgroupId)
+			resource = ev.FileOpen.GetPath()
+		}
 	case "exec":
-		sessionID = fmt.Sprintf("%d-%d", ev.Exec.Pid, ev.Exec.CgroupId)
-		resource = ev.Exec.GetPath()
+		if ev.Exec != nil {
+			sessionID = fmt.Sprintf("%d-%d", ev.Exec.Pid, ev.Exec.CgroupId)
+			resource = ev.Exec.GetPath()
+		}
 	case "net":
-		sessionID = fmt.Sprintf("%d-%d", ev.Net.Pid, ev.Net.CgroupId)
-		resource = fmt.Sprintf("%d:%d", ev.Net.Daddr, ev.Net.Dport)
+		if ev.Net != nil {
+			sessionID = fmt.Sprintf("%d-%d", ev.Net.Pid, ev.Net.CgroupId)
+			resource = fmt.Sprintf("%d:%d", ev.Net.Daddr, ev.Net.Dport)
+		}
+	}
+
+	if sessionID == "" {
+		return
 	}
 
 	s.mu.Lock()
@@ -109,7 +119,6 @@ func (s *Scorer) processEvent(ev telemetry.Event) {
 		})
 	}
 
-	// Prompt 7: baseline-aware scorer
 	var emaValue float64
 	err := s.db.QueryRow("SELECT ema_value FROM semantic_baseline WHERE repo_id = ? AND feature_key = 'flagged_event_count'", s.repoID).Scan(&emaValue)
 
@@ -117,7 +126,6 @@ func (s *Scorer) processEvent(ev telemetry.Event) {
 	ruleName := ""
 
 	if err == sql.ErrNoRows {
-		// Cold start fallback
 		if ev.Type == "file_open" {
 			if !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") {
 				isFlagged = true
@@ -125,7 +133,6 @@ func (s *Scorer) processEvent(ev telemetry.Event) {
 			}
 		}
 	} else if err == nil {
-		// Mock EMA deviation check
 		currentScore := float64(len(sg.Events))
 		if currentScore > emaValue*2.0 {
 			isFlagged = true

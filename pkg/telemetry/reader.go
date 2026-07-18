@@ -4,11 +4,18 @@ import (
 	"context"
 	"fmt"
 	"unsafe"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 )
+
+type ChannelConfig struct {
+	CriticalChan    chan *Event // file_open, exec (fail-closed)
+	TelemetryChan   chan *Event // net (fail-open)
+	CriticalTimeout time.Duration
+}
 
 type EbpfLayer struct {
 	Collections []*ebpf.Collection
@@ -37,7 +44,7 @@ func decodeExec(record []byte) *ExecEvent {
 	return (*ExecEvent)(unsafe.Pointer(&record[0]))
 }
 
-func InitLayer(ctx context.Context, targetCgroupId uint64, eventChan chan<- Event) (*EbpfLayer, error) {
+func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfig) (*EbpfLayer, error) {
 	files := []string{
 		"ebpf/file_open.bpf.o",
 		"ebpf/socket_connect.bpf.o",
@@ -77,16 +84,25 @@ func InitLayer(ctx context.Context, targetCgroupId uint64, eventChan chan<- Even
 			if bpfMap.Type() == ebpf.RingBuf {
 				switch mapName {
 				case "file_events":
-					go readRingBuf(ctx, bpfMap, mapName, eventChan, func(b []byte) Event {
-						return Event{Type: "file_open", FileOpen: decodeFileOpen(b)}
+					go readRingBuf(ctx, bpfMap, mapName, chConfig, func(b []byte) *Event {
+						ev := GetEvent()
+						ev.Type = "file_open"
+						ev.FileOpen = decodeFileOpen(b)
+						return ev
 					})
 				case "net_events":
-					go readRingBuf(ctx, bpfMap, mapName, eventChan, func(b []byte) Event {
-						return Event{Type: "net", Net: decodeNet(b)}
+					go readRingBuf(ctx, bpfMap, mapName, chConfig, func(b []byte) *Event {
+						ev := GetEvent()
+						ev.Type = "net"
+						ev.Net = decodeNet(b)
+						return ev
 					})
 				case "exec_events":
-					go readRingBuf(ctx, bpfMap, mapName, eventChan, func(b []byte) Event {
-						return Event{Type: "exec", Exec: decodeExec(b)}
+					go readRingBuf(ctx, bpfMap, mapName, chConfig, func(b []byte) *Event {
+						ev := GetEvent()
+						ev.Type = "exec"
+						ev.Exec = decodeExec(b)
+						return ev
 					})
 				}
 			}
@@ -97,7 +113,7 @@ func InitLayer(ctx context.Context, targetCgroupId uint64, eventChan chan<- Even
 }
 
 // H-2: epoll-backed blocking read via cilium/ebpf ringbuf wrapper
-func readRingBuf(ctx context.Context, m *ebpf.Map, name string, eventChan chan<- Event, decoder func([]byte) Event) {
+func readRingBuf(ctx context.Context, m *ebpf.Map, name string, chConfig ChannelConfig, decoder func([]byte) *Event) {
 	rd, err := ringbuf.NewReader(m)
 	if err != nil {
 		fmt.Printf("failed to create ringbuf reader for %s: %v\n", name, err)
@@ -119,10 +135,20 @@ func readRingBuf(ctx context.Context, m *ebpf.Map, name string, eventChan chan<-
 			continue
 		}
 
-		select {
-		case eventChan <- decoder(record.RawSample):
-		case <-ctx.Done():
-			return
+		ev := decoder(record.RawSample)
+
+		if ev.Type == "file_open" || ev.Type == "exec" {
+			select {
+			case chConfig.CriticalChan <- ev:
+			case <-time.After(chConfig.CriticalTimeout):
+				fmt.Printf("WARN: Backpressure hit! Dropped %s event (fail-closed)\n", ev.Type)
+			}
+		} else {
+			select {
+			case chConfig.TelemetryChan <- ev:
+			default:
+				fmt.Printf("WARN: Telemetry channel full! Dropped %s event (fail-open)\n", ev.Type)
+			}
 		}
 	}
 }

@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bytes"
+	"sync"
 )
 
 const MaxPathLen = 256
@@ -56,3 +57,23 @@ type Event struct {
 	Net      *NetEvent
 	Exec     *ExecEvent
 }
+
+
+var eventPool = sync.Pool{
+	New: func() interface{} {
+		return new(Event)
+	},
+}
+
+func GetEvent() *Event {
+	return eventPool.Get().(*Event)
+}
+
+func PutEvent(e *Event) {
+	e.Type = ""
+	e.FileOpen = nil
+	e.Net = nil
+	e.Exec = nil
+	eventPool.Put(e)
+}
+

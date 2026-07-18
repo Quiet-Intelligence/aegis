@@ -15,7 +15,7 @@ import (
 type AuditLog struct {
 	Timestamp time.Time            `json:"timestamp"`
 	SessionID string               `json:"session_id"`
-	Event     telemetry.Event      `json:"event"`
+	Event     *telemetry.Event     `json:"event"`
 	Decision  adjudicator.Decision `json:"decision"`
 	Rationale string               `json:"rationale"`
 }
@@ -70,7 +70,7 @@ func (e *Enforcer) SyncPolicies() {
 	}
 }
 
-func (e *Enforcer) Enforce(sessionID string, ev telemetry.Event, decision adjudicator.Decision, rationale string) {
+func (e *Enforcer) Enforce(sessionID string, ev *telemetry.Event, decision adjudicator.Decision, rationale string) {
 	logEntry := AuditLog{
 		Timestamp: time.Now(),
 		SessionID: sessionID,
