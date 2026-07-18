@@ -62,9 +62,13 @@ Aegis is divided into four highly-optimized, cooperating engineering pillars.
 Aegis relies on Linux Security Modules (`bpf_lsm`) compiled via `clang -target bpf`. It attaches directly to critical kernel hooks: `file_open`, `socket_connect`, and `bprm_check_security`. By filtering via cgroup boundaries, it isolates the agent's process tree and streams fixed-size flat C structs via a `BPF_MAP_TYPE_RINGBUF` to userspace. This guarantees sub-millisecond overhead on the hot path. Instead of immediately blocking syscalls via `-EPERM`, Aegis implements "progressive enforcement"—acting purely as a telemetry observer until explicitly commanded to block via a synchronized `BPF_MAP_TYPE_HASH`.
 
 ### The Stateful Control Plane (Layer 2)
-The userspace daemon (`aegisd`), written in Go, executes an epoll-backed blocking read on the ring buffers. To survive massive telemetry spikes (e.g., recursive `grep` operations), it completely avoids Garbage Collection (GC) pressure through strict zero-allocation `sync.Pool` structures. Event sequences are materialized into in-memory temporal directed graphs (DAGs). A probabilistic Scorer assesses this graph against an Exponential Moving Average (EMA) baseline (e.g., normal git tree traversal vs rapid, cyclical anomaly sequences), tracking the temporal distance between nodes.
+The userspace daemon (`aegisd`), written in Go, executes an epoll-backed blocking read on the ring buffers. To survive massive telemetry spikes (e.g., recursive `grep` operations), it completely avoids Garbage Collection (GC) pressure through strict zero-allocation `sync.Pool` structures. Event sequences are materialized into in-memory temporal directed graphs (DAGs). 
 
-To guarantee structural resilience against Denial of Service (DoS), Aegis implements dual backpressure paradigms: high-criticality events (`file_open`, `exec`) use a fail-closed channel policy with hard timeouts (acting as a strict circuit breaker), while generic telemetry fails-open to preserve hot-path throughput.
+A probabilistic Scorer evaluates this graph utilizing **Dual-Mode Logic**:
+1. **Semantic Baseline Deviation:** It tracks the temporal distance between nodes against an Exponential Moving Average (EMA) baseline (e.g., normal git tree traversal vs rapid, cyclical anomaly sequences).
+2. **Absolute Hard-Boundaries:** Regardless of the semantic baseline, the scorer enforces strict zero-trust invariants. It automatically flags execution of high-risk binaries (e.g., `rm`, `wget`, `nc`), access to sensitive repository configuration (`.git/config`), and strictly out-of-bounds file accesses (`/etc`, `/usr`) escaping the `/workspace` sandbox.
+
+To guarantee structural resilience against Denial of Service (DoS), Aegis implements dual backpressure paradigms: high-criticality events (`file_open`, `exec`) use a fail-closed channel policy with hard timeouts (acting as a strict circuit breaker), while generic telemetry fails-open to preserve hot-path throughput. All eBPF C-structs are deterministically serialized into structured JSON via custom `MarshalJSON` implementations to prevent memory-address hallucination during LLM inference.
 
 ### The Episodic Memory Layer (AMLL)
 Rather than executing a computationally expensive network call to an LLM Adjudicator for every anomalous graph, Aegis utilizes an Approximate Nearest Neighbor (ANN) Retrieval-Augmented generation framework. By compressing temporal graphs into fixed-dimensional vectors stored as SQLite BLOBs, it calculates cosine similarity locally using raw vector dot-products: `similarity = A·B / (||A|| * ||B||)`. If an incoming sequence mathematically mirrors a past known-bad sequence (`similarity > 0.95`), the system auto-recalls the decision. This effectively drops LLM inference costs to absolute zero and reduces critical decision latency from ~1.5 seconds down to <50ms.
@@ -192,7 +196,7 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 - **⚠️ Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run `make everything` from native Windows PowerShell. You must clone and execute this inside a **WSL2 (Windows Subsystem for Linux)** environment or a Linux Virtual Machine.
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
 - *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
-- For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and the required headers via our setup script below.
+- **WSL2 Fallbacks:** Windows Subsystem for Linux relies on a custom Microsoft kernel (`6.6.x-microsoft`) which often lacks standard `linux-headers` in upstream `apt` repositories. Aegis automatically detects this via the `install_deps.sh` script, gracefully bypasses the header requirement, and utilizes a canonical `vmlinux.h` fallback from AquaSecurity's upstream repositories to guarantee successful compilation on WSL.
 
 **1. The "Everything" Command (Recommended for End-Users):**
 Aegis ships with a unified setup and build pipeline via a single command. From a fresh clone, this will install all required host dependencies, compile the eBPF kernel objects, build the Go binaries, and launch our beautiful Terminal UI (TUI):
@@ -319,7 +323,7 @@ To resolve the compilation limitation (Limitation #2) and allow Aegis to be ship
 
 - **eBPF Loading Errors (`operation not permitted`):** Ensure the daemon is running with root capabilities (`sudo`), and verify that LSM hooks are activated in the kernel boot parameters (`lsm=bpf,apparmor`).
 - **High GC Pauses:** Verify `sync.Pool` logic has not been bypassed during local development modifications inside `pkg/telemetry/events.go`.
-- **Windows / WSL Compilation:** Compiling for Windows natively will fail due to OS restrictions on `cilium/ebpf` maps. Ensure you are targeting `GOOS=linux` or compiling inside a WSL2 container natively.
+- **WSL Compilation / Missing Headers:** If `bpftool btf dump` fails because `/sys/kernel/btf/vmlinux` is missing (common on WSL), do not worry. The `ebpf/Makefile` is hardcoded to gracefully download a pre-generated `vmlinux.h` payload. You will see a `Warning: Could not install linux-headers` during setup, which is expected and completely handled by the build pipeline.
 
 ## 15. Support and Maintenance
 
