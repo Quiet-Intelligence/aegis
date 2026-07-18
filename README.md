@@ -21,7 +21,7 @@ Aegis is an advanced security control plane that sits inside hardened container 
 - [2. Project Overview (For General Audiences)](#2-project-overview-for-general-audiences)
 - [3. Technically Rigorous Deep Dive](#3-technically-rigorous-deep-dive)
 - [4. System Architecture](#4-system-architecture)
-- [5. In-Depth Repository Structure](#5-in-depth-repository-structure)
+- [5. Repository Structure](#5-repository-structure)
 - [6. Technology Stack](#6-technology-stack)
 - [7. Infrastructure, DevOps, and CI/CD](#7-infrastructure-devops-and-cicd)
 - [8. Setup, Installation, and Running](#8-setup-installation-and-running)
@@ -128,7 +128,7 @@ graph TD
 
 **Architecture Flow:** The Agent process inside Layer 0 triggers syscalls intercepted by Layer 1. These flow via ring buffer into Layer 2, where they are mapped to temporal behavior graphs. If flagged against the repo's baseline, the event is vectorized and queried against the SQLite Memory layer. If no historical precedent exists, the RLM-Cascade proxies the request to the optimal LLM based on risk scores, writing any subsequent Denial back down into the Layer 1 eBPF maps to block future occurrences synchronously.
 
-## 5. In-Depth Repository Structure
+## 5. Repository Structure
 
 ```text
 aegis/
@@ -189,6 +189,7 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 ## 8. Setup, Installation, and Running
 
 **Prerequisites:**
+- **⚠️ Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run `make everything` from native Windows PowerShell. You must clone and execute this inside a **WSL2 (Windows Subsystem for Linux)** environment or a Linux Virtual Machine.
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
 - *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
 - For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and the required headers via our setup script below.
@@ -222,16 +223,35 @@ make tui
 ### 8.1. Configuring the AI Adjudicator (Plug-and-Play AI)
 Aegis relies on an RLM-Cascade (Routing Language Model) to drastically lower decision costs. By default, it routes low-risk anomalies to `gpt-3.5-turbo` and escalates high-risk anomalies to `gpt-4`.
 
-However, the Go `Adjudicator` interface is **completely model-agnostic**. You can easily plug in external providers, aggregators, or entirely local models:
+However, the Go `Adjudicator` interface is **completely model-agnostic**. You can easily plug in external providers, aggregators, or entirely local models without hardcoding anything.
 
-**To swap the active model:**
-1. Open `cmd/aegisd/main.go`.
-2. Modify the `URL`, `Model`, and `APIKey` fields within the `OpenAIAdjudicator` structs (which strictly follow the standard OpenAI-compatible REST schema).
+**How to Configure Models Safely:**
+**NEVER hardcode your API keys.** The Go application reads from standard environment variables (e.g., `os.Getenv("AEGIS_LLM_KEY")`).
 
-**Examples:**
-- **OpenRouter (Aggregator):** Set `URL: "https://openrouter.ai/api/v1/chat/completions"`, `Model: "anthropic/claude-3.5-sonnet"`, and export your OpenRouter Key.
-- **HuggingFace / Groq:** Set the respective v1-compatible endpoint and model tag.
-- **Local Models (Ollama / Llama-3):** For absolute privacy, boot Ollama locally. Set `URL: "http://localhost:11434/v1/chat/completions"`, `Model: "llama3"`, and leave the API key blank. This ensures no sensitive file paths ever leave your host hardware!
+You can dynamically configure the lower-priority (cheap) and higher-priority (flagship) models via environment variables before running the application:
+
+```bash
+# Example: Using OpenAI
+export AEGIS_LLM_URL="https://api.openai.com/v1/chat/completions"
+export AEGIS_CHEAP_MODEL="gpt-3.5-turbo"
+export AEGIS_FLAGSHIP_MODEL="gpt-4-turbo"
+export AEGIS_LLM_KEY="sk-..."
+
+make everything
+```
+
+**Alternative Provider Examples:**
+- **OpenRouter (Aggregator):** 
+  `export AEGIS_LLM_URL="https://openrouter.ai/api/v1/chat/completions"`
+  `export AEGIS_CHEAP_MODEL="anthropic/claude-3-haiku"`
+  `export AEGIS_FLAGSHIP_MODEL="anthropic/claude-3.5-sonnet"`
+  `export AEGIS_LLM_KEY="sk-or-v1-..."`
+- **HuggingFace / Groq:** Set the respective v1-compatible endpoint and model tags.
+- **Local Models (Ollama):** For absolute privacy, boot Ollama locally. 
+  `export AEGIS_LLM_URL="http://localhost:11434/v1/chat/completions"`
+  `export AEGIS_CHEAP_MODEL="llama3-8b"`
+  `export AEGIS_FLAGSHIP_MODEL="llama3-70b"`
+  *(No API key needed. This ensures no sensitive file paths ever leave your host hardware!)*
 
 ## 9. Results, Benchmarks, and Evaluation
 
@@ -322,7 +342,7 @@ If you utilize Aegis architecture or benchmark methodologies in academic researc
 
 ```bibtex
 @software{Tripathi_Aegis_2026,
-  author = {Tripathi, Pundarikaksh N. and Sharma, Sameer},
+  author = {Tripathi, Pundarikaksh N. and Singh, Arnav and Sharma, Sameer},
   title = {Aegis: Behavioral Governance and Adaptive Policy Control Plane},
   year = {2026},
   url = {https://github.com/aegis-security/aegis},
