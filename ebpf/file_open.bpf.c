@@ -57,7 +57,8 @@ int BPF_PROG(aegis_file_open, struct file *file)
     u32 key = 0;
     u64 *target_cgroup_id = bpf_map_lookup_elem(&target_cgroup_map, &key);
 
-    if (!target_cgroup_id || *target_cgroup_id != current_cgroup_id) {
+    // A target of 0 is the wildcard: monitor every cgroup.
+    if (!target_cgroup_id || (*target_cgroup_id != 0 && *target_cgroup_id != current_cgroup_id)) {
         return 0; 
     }
 

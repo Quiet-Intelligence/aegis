@@ -53,7 +53,8 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
     u32 key = 0;
     u64 *target_cgroup_id = bpf_map_lookup_elem(&target_cgroup_map, &key);
 
-    if (!target_cgroup_id || *target_cgroup_id != current_cgroup_id) {
+    // A target of 0 is the wildcard: monitor every cgroup.
+    if (!target_cgroup_id || (*target_cgroup_id != 0 && *target_cgroup_id != current_cgroup_id)) {
         return 0;
     }
 
@@ -74,10 +75,11 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
     event->timestamp_ns = bpf_ktime_get_ns();
     event->daddr = addr_in->sin_addr.s_addr;
     event->dport = bpf_ntohs(addr_in->sin_port);
-    
-    struct sock *sk = sock->sk;
-    u16 protocol = 0;
-    bpf_core_read(&protocol, sizeof(protocol), &sk->sk_protocol);
+
+    // Verifier-safe: BPF_CORE_READ chains through the helper instead of
+    // doing arithmetic on the trusted_ptr_or_null returned by sock->sk,
+    // which kernels reject with "null-check it first".
+    u16 protocol = BPF_CORE_READ(sock, sk, sk_protocol);
     event->protocol = protocol;
 
     bpf_ringbuf_submit(event, 0);
