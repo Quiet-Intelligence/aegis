@@ -34,6 +34,9 @@ type FlaggedEvent struct {
 	Event     *telemetry.Event
 	Context   []*telemetry.Event
 	Rule      string
+	// Resource is the human-readable subject of the event (file path,
+	// exec path, or ip:port) so operators can see WHAT was flagged.
+	Resource string
 }
 
 type Scorer struct {
@@ -43,6 +46,15 @@ type Scorer struct {
 	mu           sync.Mutex
 	flaggedChan  chan FlaggedEvent
 	workspaceDir string
+	// FlagCooldown suppresses repeat flags for the same session+rule within
+	// the window, so one noisy process cannot flood adjudication (or the
+	// LLM budget). 0 disables suppression. Defaults to 15s.
+	FlagCooldown time.Duration
+	lastFlag     map[string]time.Time
+	// FlagNet also routes outbound socket_connect events to adjudication
+	// (cold-start only). Off by default: network is normally governed by
+	// the Layer-0 egress allowlist. Enable with AEGIS_FLAG_NET=1.
+	FlagNet bool
 }
 
 func NewScorer(db *sql.DB, repoID int64, workspaceDir string) *Scorer {
@@ -52,6 +64,8 @@ func NewScorer(db *sql.DB, repoID int64, workspaceDir string) *Scorer {
 		graphs:       make(map[string]*SessionGraph),
 		flaggedChan:  make(chan FlaggedEvent, 100),
 		workspaceDir: workspaceDir,
+		FlagCooldown: 15 * time.Second,
+		lastFlag:     make(map[string]time.Time),
 	}
 }
 
@@ -83,12 +97,12 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 	case "exec":
 		if ev.Exec != nil {
 			sessionID = fmt.Sprintf("%d-%d", ev.Exec.Pid, ev.Exec.CgroupId)
-			resource = ev.Exec.GetPath()
+			resource = strings.TrimSpace(ev.Exec.GetPath() + " " + ev.Exec.GetArgs())
 		}
 	case "net":
 		if ev.Net != nil {
 			sessionID = fmt.Sprintf("%d-%d", ev.Net.Pid, ev.Net.CgroupId)
-			resource = fmt.Sprintf("%d:%d", ev.Net.Daddr, ev.Net.Dport)
+			resource = ev.Net.GetAddr()
 		}
 	}
 
@@ -131,6 +145,9 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 				isFlagged = true
 				ruleName = "File access outside workspace sandbox (Cold Start)"
 			}
+		} else if ev.Type == "net" && s.FlagNet {
+			isFlagged = true
+			ruleName = "Outbound network connection (Cold Start)"
 		}
 	} else if err == nil {
 		currentScore := float64(len(sg.Events))
@@ -141,6 +158,21 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 	}
 
 	if isFlagged {
+		// Cooldown: at most one flag per session+rule per window. Events keep
+		// accumulating in the graph above regardless — only the adjudication
+		// channel is gated.
+		if s.FlagCooldown > 0 {
+			key := sessionID + "|" + ruleName
+			s.mu.Lock()
+			last, seen := s.lastFlag[key]
+			if seen && time.Since(last) < s.FlagCooldown {
+				s.mu.Unlock()
+				return
+			}
+			s.lastFlag[key] = time.Now()
+			s.mu.Unlock()
+		}
+
 		k := 5
 		if len(sg.Events) < k {
 			k = len(sg.Events)
@@ -152,6 +184,7 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 			Event:     ev,
 			Context:   contextEvents,
 			Rule:      ruleName,
+			Resource:  resource,
 		}
 	}
 }
