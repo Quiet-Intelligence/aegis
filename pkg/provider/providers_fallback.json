@@ -3,7 +3,7 @@
     "openrouter": {
       "url": "https://openrouter.ai/api/v1/chat/completions",
       "models_url": "https://openrouter.ai/api/v1/models",
-      "key_env": "AEGIS_LLM_KEY",
+      "key_env": "OPENROUTER_API_KEY",
       "auth": "bearer",
       "headers": { "X-Title": "aegisd" },
       "default_model": "deepseek/deepseek-v4-flash",
