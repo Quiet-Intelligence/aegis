@@ -3,8 +3,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"unsafe"
+	"path/filepath"
+	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -44,25 +46,35 @@ func decodeExec(record []byte) *ExecEvent {
 	return (*ExecEvent)(unsafe.Pointer(&record[0]))
 }
 
-func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfig) (*EbpfLayer, error) {
+// InitLayer loads the compiled eBPF objects from objDir (default "ebpf",
+// override with AEGIS_EBPF_DIR), attaches every LSM probe, and starts the
+// ringbuf readers. It fails loudly — a daemon with zero event sources is a
+// silent no-op, which is worse than no daemon at all.
+func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfig, objDir string) (*EbpfLayer, error) {
+	if objDir == "" {
+		objDir = "ebpf"
+	}
 	files := []string{
-		"ebpf/file_open.bpf.o",
-		"ebpf/socket_connect.bpf.o",
-		"ebpf/exec_hash.bpf.o",
+		filepath.Join(objDir, "file_open.bpf.o"),
+		filepath.Join(objDir, "socket_connect.bpf.o"),
+		filepath.Join(objDir, "exec_hash.bpf.o"),
 	}
 
 	layer := &EbpfLayer{}
+	var missing []string
+	var attachErrs []string
 
 	for _, file := range files {
 		spec, err := ebpf.LoadCollectionSpec(file)
 		if err != nil {
-			// graceful skip if file missing
+			missing = append(missing, file)
 			continue
 		}
 
 		coll, err := ebpf.NewCollection(spec)
 		if err != nil {
-			continue // skip
+			missing = append(missing, fmt.Sprintf("%s (verifier/load error: %v)", file, err))
+			continue
 		}
 		layer.Collections = append(layer.Collections, coll)
 
@@ -74,9 +86,10 @@ func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfi
 		for name, prog := range coll.Programs {
 			lnk, err := link.AttachLSM(link.LSMOptions{Program: prog})
 			if err != nil {
-				fmt.Printf("Failed to attach %s: %v\n", name, err)
+				attachErrs = append(attachErrs, fmt.Sprintf("%s: %v", name, err))
 				continue
 			}
+			fmt.Printf("eBPF: attached LSM probe %s (from %s)\n", name, file)
 			layer.Links = append(layer.Links, lnk)
 		}
 
@@ -109,6 +122,26 @@ func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfi
 		}
 	}
 
+	// Loud failures: an idle daemon with zero event sources is worse than
+	// no daemon at all.
+	if len(layer.Collections) == 0 {
+		return layer, fmt.Errorf(
+			"no eBPF objects could be loaded [%s]. Remediation: install bpftool+clang, then run `make ebpf` to compile kernel objects for your kernel",
+			strings.Join(missing, "; "))
+	}
+	if len(layer.Links) == 0 {
+		return layer, fmt.Errorf(
+			"eBPF objects loaded but no LSM probes attached [%s]. Remediation: run as root and verify `bpf` is in /sys/kernel/security/lsm",
+			strings.Join(attachErrs, "; "))
+	}
+	if len(missing) > 0 {
+		fmt.Printf("eBPF: WARNING — %d/%d objects unavailable: %s\n", len(missing), len(files), strings.Join(missing, "; "))
+	}
+	if len(attachErrs) > 0 {
+		fmt.Printf("eBPF: WARNING — some probes failed to attach: %s\n", strings.Join(attachErrs, "; "))
+	}
+
+	fmt.Printf("eBPF: %d collection(s) loaded, %d LSM probe(s) attached\n", len(layer.Collections), len(layer.Links))
 	return layer, nil
 }
 
