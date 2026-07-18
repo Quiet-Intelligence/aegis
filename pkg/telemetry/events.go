@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bytes"
+	"encoding/json"
 	"sync"
 )
 
@@ -23,6 +24,17 @@ func (e *FileOpenEvent) GetPath() string {
 		return string(e.Path[:])
 	}
 	return string(e.Path[:idx])
+}
+
+func (e *FileOpenEvent) MarshalJSON() ([]byte, error) {
+	type Alias FileOpenEvent
+	return json.Marshal(&struct {
+		*Alias
+		PathString string `json:"Path"`
+	}{
+		Alias:      (*Alias)(e),
+		PathString: e.GetPath(),
+	})
 }
 
 type NetEvent struct {
@@ -49,6 +61,17 @@ func (e *ExecEvent) GetPath() string {
 		return string(e.Path[:])
 	}
 	return string(e.Path[:idx])
+}
+
+func (e *ExecEvent) MarshalJSON() ([]byte, error) {
+	type Alias ExecEvent
+	return json.Marshal(&struct {
+		*Alias
+		PathString string `json:"Path"`
+	}{
+		Alias:      (*Alias)(e),
+		PathString: e.GetPath(),
+	})
 }
 
 type Event struct {

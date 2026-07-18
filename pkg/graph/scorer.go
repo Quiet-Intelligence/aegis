@@ -125,19 +125,36 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 	isFlagged := false
 	ruleName := ""
 
-	if err == sql.ErrNoRows {
-		if ev.Type == "file_open" {
-			if !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") {
-				isFlagged = true
-				ruleName = "File access outside workspace sandbox (Cold Start)"
-			}
+	// Always flag out-of-bounds file accesses and sensitive modifications
+	if ev.Type == "file_open" {
+		if !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") && !strings.HasPrefix(resource, "/proc") && !strings.HasPrefix(resource, "/dev") {
+			isFlagged = true
+			ruleName = "File access outside workspace sandbox"
 		}
-	} else if err == nil {
+		// Catch .git/config modifications (O_WRONLY=1, O_RDWR=2)
+		if strings.Contains(resource, ".git/config") && (ev.FileOpen.Flags&3 != 0) {
+			isFlagged = true
+			ruleName = "Modification of repository configuration"
+		}
+	}
+
+	// Catch dangerous executions (rm, curl, wget, etc)
+	if ev.Type == "exec" {
+		if strings.HasSuffix(resource, "/rm") || strings.HasSuffix(resource, "/wget") || strings.HasSuffix(resource, "/curl") || strings.HasSuffix(resource, "/nc") {
+			isFlagged = true
+			ruleName = "Execution of high-risk binary"
+		}
+	}
+
+	// Baseline deviation (if not already flagged)
+	if !isFlagged && err == nil {
 		currentScore := float64(len(sg.Events))
 		if currentScore > emaValue*2.0 {
 			isFlagged = true
 			ruleName = "High deviation from semantic baseline"
 		}
+	} else if !isFlagged && err == sql.ErrNoRows {
+		// Cold start: if no baseline, we just rely on the static rules above
 	}
 
 	if isFlagged {

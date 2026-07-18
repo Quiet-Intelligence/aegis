@@ -13,6 +13,7 @@ import (
 	"aegis/internal/memory/consolidate"
 	"aegis/internal/memory/embed"
 	"aegis/internal/memory/episodic"
+	"aegis/internal/proxy"
 	"aegis/pkg/adjudicator"
 	"aegis/pkg/graph"
 	"aegis/pkg/policy"
@@ -67,15 +68,43 @@ func main() {
 	embedder := &embed.MockEmbedder{}
 	store := episodic.NewStore(db, embedder)
 
-	// 5. Initialize Adjudicator (Retrieval Augmented)
-	baseLLM := &adjudicator.OpenAIAdjudicator{
-		APIKey: os.Getenv("OPENAI_API_KEY"),
-		URL:    "https://api.openai.com/v1/chat/completions",
-		Model:  "gpt-4",
+	// 5. Initialize Adjudicators from Environment Variables
+	apiURL := os.Getenv("AEGIS_LLM_URL")
+	if apiURL == "" {
+		apiURL = "https://api.openai.com/v1/chat/completions"
+	}
+	apiKey := os.Getenv("AEGIS_LLM_KEY")
+	
+	cheapModel := os.Getenv("AEGIS_CHEAP_MODEL")
+	if cheapModel == "" {
+		cheapModel = "gpt-3.5-turbo"
 	}
 	
+	flagshipModel := os.Getenv("AEGIS_FLAGSHIP_MODEL")
+	if flagshipModel == "" {
+		flagshipModel = "gpt-4"
+	}
+
+	cheapLLM := &adjudicator.OpenAIAdjudicator{
+		APIKey: apiKey,
+		URL:    apiURL,
+		Model:  cheapModel,
+	}
+
+	flagshipLLM := &adjudicator.OpenAIAdjudicator{
+		APIKey: apiKey,
+		URL:    apiURL,
+		Model:  flagshipModel,
+	}
+
+	cascade := &proxy.RLMCascade{
+		CheapLLM:    cheapLLM,
+		FlagshipLLM: flagshipLLM,
+	}
+	
+	// Wrap with AMLL (Episodic Memory)
 	adj := &episodic.RetrievalAugmentedAdjudicator{
-		LLM:      baseLLM,
+		LLM:      cascade,
 		Store:    store,
 		Embedder: embedder,
 	}
