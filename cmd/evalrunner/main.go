@@ -82,14 +82,14 @@ func main() {
 		}
 
 		time.Sleep(10 * time.Millisecond) // wait for processing
-		
+
 		var flagged graph.FlaggedEvent
 		select {
 		case flagged = <-scorer.Flagged():
 		default:
 			// No flag
 		}
-		
+
 		decision := adjudicator.DecisionAllow
 		isAuto := false
 
@@ -102,7 +102,7 @@ func main() {
 				autoTotal++
 			}
 		}
-		
+
 		cancel()
 
 		// Truth evaluation
@@ -111,23 +111,33 @@ func main() {
 
 		if predictedMalicious && actualMalicious {
 			tp++
-			if isAuto { autoTP++ }
+			if isAuto {
+				autoTP++
+			}
 		} else if !predictedMalicious && !actualMalicious {
 			tn++
 		} else if predictedMalicious && !actualMalicious {
 			fp++
-			if isAuto { autoFP++ }
+			if isAuto {
+				autoFP++
+			}
 		} else if !predictedMalicious && actualMalicious {
 			fn++
 		}
 	}
 
 	precision := float64(tp) / float64(tp+fp)
-	if tp+fp == 0 { precision = 1.0 }
+	if tp+fp == 0 {
+		precision = 1.0
+	}
 	recall := float64(tp) / float64(tp+fn)
-	if tp+fn == 0 { recall = 1.0 }
+	if tp+fn == 0 {
+		recall = 1.0
+	}
 	f1 := 2 * (precision * recall) / (precision + recall)
-	if precision+recall == 0 { f1 = 0 }
+	if precision+recall == 0 {
+		f1 = 0
+	}
 
 	metrics := EvalMetrics{
 		Total:     len(cases),
@@ -137,13 +147,13 @@ func main() {
 		FPR:       float64(fp) / float64(fp+tn),
 		FNR:       float64(fn) / float64(tp+fn),
 		AutoRecall: AutoRecallMetrics{
-			Total: autoTotal,
+			Total:     autoTotal,
 			Precision: float64(autoTP) / float64(autoTP+autoFP),
 		},
 	}
 
 	fmt.Printf("Eval Results (Golden):\nPrecision: %.2f\nRecall: %.2f\nF1: %.2f\n", precision, recall, f1)
-	
+
 	os.MkdirAll("evals/results", 0755)
 	out, _ := json.MarshalIndent(metrics, "", "  ")
 	os.WriteFile(filepath.Join("evals/results", fmt.Sprintf("eval_%d.json", time.Now().Unix())), out, 0644)

@@ -16,7 +16,7 @@ func TestBackpressure_FailClosed(t *testing.T) {
 	chConfig.CriticalChan <- ev1
 
 	start := time.Now()
-	
+
 	ev2 := &Event{Type: "file_open"}
 	select {
 	case chConfig.CriticalChan <- ev2:

@@ -44,7 +44,7 @@ func SessionEnd(ctx context.Context, db *sql.DB, repoID int64, sessionID string,
 			GROUP BY rationale 
 			HAVING session_count >= 2
 		`, repoID)
-		
+
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
@@ -52,7 +52,7 @@ func SessionEnd(ctx context.Context, db *sql.DB, repoID int64, sessionID string,
 				var sc int
 				var eventID int64
 				rows.Scan(&rationale, &sc, &eventID)
-				
+
 				tx.ExecContext(ctx, `
 					INSERT INTO policy_entries (repo_id, match_type, match_value, promoted_from_event_id, created_at, expires_at)
 					SELECT ?, 'path', ?, ?, ?, ?

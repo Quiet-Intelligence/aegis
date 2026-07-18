@@ -64,7 +64,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if m.ticks == 6 {
 			m.events = append([]string{statusStyle.Render("[+] Bandit Proposes: AUTO_DECIDE_THRESHOLD -> 0.92")}, m.events...)
 		}
-		
+
 		if len(m.events) > 8 {
 			m.events = m.events[:8]
 		}
@@ -75,15 +75,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	s := titleStyle.Render("🛡️  Aegis Control Plane") + "\n"
-	
+
 	header := fmt.Sprintf("Status: %s | Hooks: 3 | Vectors: 5,234", statusStyle.Render("ONLINE"))
 	s += header + "\n\n"
-	
+
 	eventsStr := strings.Join(m.events, "\n")
-	s += borderStyle.Render("Live Telemetry & Adjudication Feed\n\n" + eventsStr) + "\n\n"
-	
+	s += borderStyle.Render("Live Telemetry & Adjudication Feed\n\n"+eventsStr) + "\n\n"
+
 	s += lipgloss.NewStyle().Faint(true).Render("Press 'q' to exit")
-	
+
 	return lipgloss.Place(
 		80, 24,
 		lipgloss.Center, lipgloss.Center,

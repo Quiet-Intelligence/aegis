@@ -55,7 +55,7 @@ func (s *Store) RecordCase(ctx context.Context, repoID int64, sessionID string, 
 		(session_id, repo_id, event_context_json, embedding_id, decision, rationale, decided_at, decided_by) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		sessionID, repoID, string(evJSON), embID, string(decision), rationale, time.Now(), decidedBy)
-	
+
 	if err != nil {
 		return err
 	}

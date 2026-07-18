@@ -1,7 +1,5 @@
 package adjudicator
 
-
-
 type Decision string
 
 const (

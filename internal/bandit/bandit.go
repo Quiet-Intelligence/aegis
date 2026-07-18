@@ -9,30 +9,30 @@ import (
 type Action string
 
 const (
-	ActionAutoAllow       Action = "auto_allow"
-	ActionAutoDeny        Action = "auto_deny"
-	ActionEscalateCheap   Action = "escalate_cheap"
+	ActionAutoAllow        Action = "auto_allow"
+	ActionAutoDeny         Action = "auto_deny"
+	ActionEscalateCheap    Action = "escalate_cheap"
 	ActionEscalateFlagship Action = "escalate_flagship"
 )
 
 type EpisodicOutcome struct {
-	IsMalicious   bool
-	Decision      Action
-	HumanRevoked  bool
+	IsMalicious  bool
+	Decision     Action
+	HumanRevoked bool
 }
 
 type LinUCB struct {
-	mu     sync.Mutex
-	theta  map[Action]float64
-	alpha  float64
+	mu    sync.Mutex
+	theta map[Action]float64
+	alpha float64
 }
 
 func NewLinUCB(alpha float64) *LinUCB {
 	return &LinUCB{
 		theta: map[Action]float64{
-			ActionAutoAllow:       0.0,
-			ActionAutoDeny:        0.0,
-			ActionEscalateCheap:   0.0,
+			ActionAutoAllow:        0.0,
+			ActionAutoDeny:         0.0,
+			ActionEscalateCheap:    0.0,
 			ActionEscalateFlagship: 0.0,
 		},
 		alpha: alpha,
@@ -84,10 +84,10 @@ func (b *LinUCB) Propose() (float64, float64, string) {
 	// Analyze weights to propose threshold adjustments
 	// Simulated logic based on trained weights
 	expectedImprovement := b.theta[ActionAutoDeny] - b.theta[ActionAutoAllow]
-	
+
 	proposedThreshold := 0.95
 	proposedK := 5.0
-	
+
 	if expectedImprovement > 0 {
 		proposedThreshold = 0.90 // Relax threshold if auto-deny is performing well
 	}

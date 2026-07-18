@@ -55,7 +55,7 @@ func BenchmarkQuery(b *testing.B) {
 			for j := range queryVec {
 				queryVec[j] = rand.Float32()
 			}
-			
+
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				store.Query(context.Background(), repoID, queryVec, 5)

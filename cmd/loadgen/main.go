@@ -52,7 +52,7 @@ loop:
 		case t := <-ticker.C:
 			ev := telemetry.GetEvent()
 			ev.Type = "file_open"
-			
+
 			select {
 			case eventChan <- ev:
 				latencies = append(latencies, time.Since(t))
