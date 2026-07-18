@@ -23,11 +23,14 @@ type AuditLog struct {
 type Enforcer struct {
 	DeniedPathsMap *ebpf.Map
 	LogFile        *os.File
-	db             *sql.DB
-	repoID         int64
+	// AuditOnly disables all kernel-side blocking (BPF map writes). Decisions
+	// are still logged and recorded. Forced on when monitoring is unscoped.
+	AuditOnly bool
+	db        *sql.DB
+	repoID    int64
 }
 
-func NewEnforcer(logPath string, coll *ebpf.Collection, db *sql.DB, repoID int64) (*Enforcer, error) {
+func NewEnforcer(logPath string, coll *ebpf.Collection, db *sql.DB, repoID int64, auditOnly bool) (*Enforcer, error) {
 	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
@@ -41,17 +44,18 @@ func NewEnforcer(logPath string, coll *ebpf.Collection, db *sql.DB, repoID int64
 	e := &Enforcer{
 		LogFile:        f,
 		DeniedPathsMap: m,
+		AuditOnly:      auditOnly,
 		db:             db,
 		repoID:         repoID,
 	}
-	
+
 	e.SyncPolicies()
-	
+
 	return e, nil
 }
 
 func (e *Enforcer) SyncPolicies() {
-	if e.db == nil || e.DeniedPathsMap == nil {
+	if e.db == nil || e.DeniedPathsMap == nil || e.AuditOnly {
 		return
 	}
 	rows, err := e.db.Query(`SELECT match_value FROM policy_entries WHERE repo_id = ? AND match_type = 'path' AND revoked_at IS NULL AND expires_at > ?`, e.repoID, time.Now())
@@ -82,7 +86,7 @@ func (e *Enforcer) Enforce(sessionID string, ev *telemetry.Event, decision adjud
 	b, _ := json.Marshal(logEntry)
 	e.LogFile.Write(append(b, '\n'))
 
-	if decision == adjudicator.DecisionDeny && e.DeniedPathsMap != nil {
+	if decision == adjudicator.DecisionDeny && e.DeniedPathsMap != nil && !e.AuditOnly {
 		if ev.Type == "file_open" && ev.FileOpen != nil {
 			var pathBuf [256]byte
 			copy(pathBuf[:], ev.FileOpen.GetPath())
