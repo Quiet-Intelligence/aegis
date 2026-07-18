@@ -190,7 +190,8 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 
 **Prerequisites:**
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
-- For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and headers via our setup script.
+- *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
+- For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and the required headers via our setup script below.
 
 **1. The "Everything" Command (Recommended for End-Users):**
 Aegis ships with a unified setup and build pipeline via a single command. From a fresh clone, this will install all required host dependencies, compile the eBPF kernel objects, build the Go binaries, and launch our beautiful Terminal UI (TUI):
@@ -262,8 +263,12 @@ The system successfully intercepts eBPF telemetry, constructs temporal graphs, c
 ## 11. Limitations and Future Work
 
 1. **Vector Indexing Overhead:** Currently, similarity scoring relies on brute-force iteration over raw `float32` BLOBs. As documented in the ANN Benchmarks, this scales comfortably up to ~5,000 vectors. Future iterations must migrate to `sqlite-vec` or HNSW indexes to support multi-year enterprise retention scales.
-2. **Online Learning:** The LinUCB bandit operates strictly offline. While mathematically safer, migrating to an online/epsilon-greedy execution loop would allow live adaptation without human intervention, contingent on further theoretical safety bounds.
-3. **Model Fine-Tuning:** Replacing generalist models (`gpt-4`) with locally-hosted, SLM (Small Language Models) fine-tuned specifically on filesystem heuristics (e.g., LLaMA 3 8B) would eliminate external network reliance entirely.
+2. **eBPF Target Compilation:** Because Aegis relies on specific kernel structs, distributing a raw `.exe` or `.deb` across diverse Linux kernels is brittle without local compilation.
+3. **Online Learning:** The LinUCB bandit operates strictly offline. While mathematically safer, migrating to an online/epsilon-greedy execution loop would allow live adaptation without human intervention, contingent on further theoretical safety bounds.
+4. **Model Fine-Tuning:** Replacing generalist models (`gpt-4`) with locally-hosted, SLM (Small Language Models) fine-tuned specifically on filesystem heuristics (e.g., LLaMA 3 8B) would eliminate external network reliance entirely.
+
+## 12. Future Work: eBPF CO-RE Integration
+To resolve the compilation limitation (Limitation #2) and allow Aegis to be shipped as a true "compile-once" binary without requiring end-users to install Clang/LLVM, we intend to implement **eBPF CO-RE (Compile Once – Run Everywhere)**. By embedding BTF (BPF Type Format) metadata into the Go binary, Aegis will dynamically adjust kernel memory offsets at runtime, making distribution entirely seamless across modern Linux kernels.
 
 ## 12. Debugging and Troubleshooting
 
