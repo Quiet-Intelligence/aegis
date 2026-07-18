@@ -17,6 +17,31 @@ struct {
 
 #define MAX_PATH_LEN 256
 
+#define AEGIS_O_ACCMODE 3
+#define AEGIS_O_WRONLY  1
+#define AEGIS_O_RDWR    2
+#define AEGIS_O_APPEND  02000
+
+static __always_inline int path_boundary(const char *p, const char *prefix, int len)
+{
+#pragma unroll
+    for (int i = 0; i < 16; i++) {
+        if (i >= len) return p[i] == '\0' || p[i] == '/';
+        if (p[i] != prefix[i]) return 0;
+    }
+    return 0;
+}
+
+static __always_inline int writable_sandbox_path(const char *p)
+{
+    if (path_boundary(p, "/workspace", 10)) return 1;
+    /* Device endpoints are required for normal terminal I/O, not storage. */
+    if (path_boundary(p, "/dev/null", 9)) return 1;
+    if (path_boundary(p, "/dev/tty", 8)) return 1;
+    if (path_boundary(p, "/dev/fd", 7)) return 1;
+    return 0;
+}
+
 /**
  * @brief Policy map populated by the Go control plane.
  * Stores paths that have been explicitly denied (L1-5).
@@ -83,6 +108,16 @@ int BPF_PROG(aegis_file_open, struct file *file)
     // L1-5: Check policy map and block if matched
     u32 *denied = bpf_map_lookup_elem(&denied_paths_map, path_buf);
     if (denied && *denied == 1) {
+        return -1; // -EPERM
+    }
+
+    // Defense in depth: commands are free to read system files, but writes
+    // are confined to /workspace (plus terminal device endpoints). This protects
+    // shell builtins such as `echo > file` which never issue execve and
+    // therefore cannot be mediated by the command gate.
+    int access_mode = file->f_flags & AEGIS_O_ACCMODE;
+    int is_write = access_mode == AEGIS_O_WRONLY || access_mode == AEGIS_O_RDWR || (file->f_flags & AEGIS_O_APPEND);
+    if (is_write && !writable_sandbox_path(path_buf)) {
         return -1; // -EPERM
     }
     
