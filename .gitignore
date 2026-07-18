@@ -28,3 +28,7 @@ docs/images/
 
 # Vendor
 vendor/
+
+# Local config / secrets
+.env
+aegis.env
