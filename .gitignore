@@ -25,6 +25,8 @@ Thumbs.db
 eval_output.txt
 evals/results/
 docs/images/
+audit.jsonl*
+perimeter/test_workspace/
 
 # Vendor
 vendor/
@@ -32,3 +34,5 @@ vendor/
 # Local config / secrets
 .env
 aegis.env
+.aegis-run/
+ebpf/vmlinux.h

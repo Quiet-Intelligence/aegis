@@ -4,18 +4,28 @@ CLANG ?= clang
 BPFTOOL ?= bpftool
 CFLAGS := -g -O2 -target bpf -D__TARGET_ARCH_x86
 
-all: vmlinux.h file_open.bpf.o
+PROGS := file_open socket_connect exec_hash
+OBJECTS := $(addsuffix .bpf.o,$(PROGS))
+
+# If bpftool fails, never leave a poisoned empty vmlinux.h behind.
+.DELETE_ON_ERROR:
+
+all: vmlinux.h $(OBJECTS)
 
 vmlinux.h:
-	@echo "Attempting to generate vmlinux.h from local kernel BTF..."
-	-$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h 2>/dev/null || true
-	@if [ ! -s vmlinux.h ]; then \
+	@echo "Generating vmlinux.h from local kernel BTF..."
+	-$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h.tmp 2>/dev/null || true
+	@if [ ! -s vmlinux.h.tmp ]; then \
 		echo "Local BTF extraction failed (common on WSL). Downloading generic x86_64 vmlinux.h fallback..."; \
-		wget -qO vmlinux.h https://raw.githubusercontent.com/libbpf/libbpf-bootstrap/master/src/vmlinux.h; \
+		wget -qO vmlinux.h.tmp https://raw.githubusercontent.com/libbpf/libbpf-bootstrap/master/src/vmlinux.h; \
 	fi
+	@test -s vmlinux.h.tmp || { echo "FATAL: could not obtain vmlinux.h (no local BTF and download failed)"; rm -f vmlinux.h.tmp; exit 1; }
+	@mv vmlinux.h.tmp vmlinux.h
 
-file_open.bpf.o: file_open.bpf.c vmlinux.h
+%.bpf.o: %.bpf.c vmlinux.h
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o vmlinux.h
+	rm -f *.o vmlinux.h vmlinux.h.tmp
+
+.PHONY: all clean
