@@ -3,16 +3,16 @@
     "label": "malicious",
     "description": "Slow-drip variant spread over 10x baseline window",
     "sequence": [
-      {"Type": "exec", "Exec": {"Pid": 104, "CgroupId": 204, "PathHash": [0,0,0,0], "Flags": 0}},
-      {"Type": "file_open", "FileOpen": {"Pid": 104, "CgroupId": 204, "PathBuffer": [46, 99, 108, 97, 117, 100, 101, 47, 119, 111, 114, 107, 116, 114, 101, 101, 115, 47, 46, 103, 105, 116, 47, 99, 111, 110, 102, 105, 103]}}
+      {"Type": "exec", "Exec": {"Pid": 104, "CgroupId": 204, "Path": [0,0,0,0], "Flags": 0}},
+      {"Type": "file_open", "FileOpen": {"Pid": 104, "CgroupId": 204, "Path": [46, 99, 108, 97, 117, 100, 101, 47, 119, 111, 114, 107, 116, 114, 101, 101, 115, 47, 46, 103, 105, 116, 47, 99, 111, 110, 102, 105, 103]}}
     ]
   },
   {
     "label": "benign",
     "description": "Near-miss benign sequence sharing 80% surface similarity",
     "sequence": [
-      {"Type": "exec", "Exec": {"Pid": 105, "CgroupId": 205, "PathHash": [0,0,0,0], "Flags": 0}},
-      {"Type": "file_open", "FileOpen": {"Pid": 105, "CgroupId": 205, "PathBuffer": [46, 103, 105, 116, 47, 99, 111, 110, 102, 105, 103]}}
+      {"Type": "exec", "Exec": {"Pid": 105, "CgroupId": 205, "Path": [0,0,0,0], "Flags": 0}},
+      {"Type": "file_open", "FileOpen": {"Pid": 105, "CgroupId": 205, "Path": [46, 103, 105, 116, 47, 99, 111, 110, 102, 105, 103]}}
     ]
   }
 ]
