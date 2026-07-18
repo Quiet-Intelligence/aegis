@@ -1,0 +1,67 @@
+package policy
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"aegis/pkg/adjudicator"
+	"aegis/pkg/telemetry"
+	"github.com/cilium/ebpf"
+)
+
+type AuditLog struct {
+	Timestamp time.Time            `json:"timestamp"`
+	SessionID string               `json:"session_id"`
+	Event     telemetry.Event      `json:"event"`
+	Decision  adjudicator.Decision `json:"decision"`
+	Rationale string               `json:"rationale"`
+}
+
+type Enforcer struct {
+	DeniedPathsMap *ebpf.Map
+	LogFile        *os.File
+}
+
+func NewEnforcer(logPath string, coll *ebpf.Collection) (*Enforcer, error) {
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	var m *ebpf.Map
+	if coll != nil {
+		m = coll.Maps["denied_paths_map"]
+	}
+
+	return &Enforcer{
+		LogFile:        f,
+		DeniedPathsMap: m,
+	}, nil
+}
+
+func (e *Enforcer) Enforce(sessionID string, ev telemetry.Event, decision adjudicator.Decision, rationale string) {
+	logEntry := AuditLog{
+		Timestamp: time.Now(),
+		SessionID: sessionID,
+		Event:     ev,
+		Decision:  decision,
+		Rationale: rationale,
+	}
+
+	b, _ := json.Marshal(logEntry)
+	e.LogFile.Write(append(b, '\n'))
+
+	if decision == adjudicator.DecisionDeny && e.DeniedPathsMap != nil {
+		if ev.Type == "file_open" {
+			var pathBuf [256]byte
+			copy(pathBuf[:], ev.FileOpen.GetPath())
+			val := uint32(1)
+			err := e.DeniedPathsMap.Put(&pathBuf, &val)
+			if err != nil {
+				fmt.Printf("Failed to write to BPF policy map: %v\n", err)
+			}
+		}
+	}
+}
