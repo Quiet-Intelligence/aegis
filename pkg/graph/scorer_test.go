@@ -127,7 +127,7 @@ func TestScorer_HighRiskBinaryWithArgs(t *testing.T) {
 	if f == nil {
 		t.Fatal("rm execution should be flagged")
 	}
-	if f.Rule != "Execution of high-risk binary" {
+	if f.Rule != "Execution of high-risk binary (rm)" {
 		t.Errorf("unexpected rule: %q", f.Rule)
 	}
 	want := "/usr/bin/rm -rf /"

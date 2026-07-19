@@ -15,7 +15,7 @@ if command -v apt-get >/dev/null 2>&1; then
 elif command -v pacman >/dev/null 2>&1; then
     sudo pacman -Sy --needed --noconfirm clang libbpf make go wget bpf
 elif command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y --skip-unavailable clang llvm libbpf-devel make golang wget bpftool kernel-devel-$(uname -r)
+    sudo dnf install -y --skip-unavailable clang llvm libbpf-devel make golang wget bpftool "kernel-devel-$(uname -r)"
 else
     echo "No supported package manager found (need apt-get, pacman, or dnf)."
     echo "Install manually: clang, libbpf headers, make, go, wget, bpftool."

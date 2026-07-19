@@ -306,6 +306,16 @@ static int supervise(int notify_fd, pid_t child, const char *bootstrap_path) {
     }
 
     seccomp_notify_free(req, resp);
+    // poll may report HUP before waitpid observes the child's exec failure.
+    // Never return the zero-initialized status in that path: reap the child
+    // (or kill it if the notifier itself failed while it was still alive).
+    pid_t ended = waitpid(child, &child_status, WNOHANG);
+    if (ended == 0) {
+        kill(child, SIGKILL);
+        waitpid(child, &child_status, 0);
+    } else if (ended < 0 && errno != ECHILD) {
+        child_status = 1 << 8;
+    }
     return child_status;
 }
 
