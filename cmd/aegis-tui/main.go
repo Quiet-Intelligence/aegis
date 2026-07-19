@@ -17,17 +17,33 @@ import (
 )
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00ADD8"))
-	borderStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).BorderForeground(lipgloss.Color("#2c3e50"))
-	denyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#e74c3c")).Bold(true)
-	allowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#2ecc71")).Bold(true)
-	askStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#f1c40f")).Bold(true)
-	autoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#9b59b6"))
-	dimStyle    = lipgloss.NewStyle().Faint(true)
-	labelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#7f8c8d"))
+	logo = `
+    ___    ______ ___________
+   /   |  / ____// ____/  _/ ___/
+  / /| | / __/  / / __ / / \__ \ 
+ / ___ |/ /___ / /_/ // / ___/ / 
+/_/  |_/_____/ \____/___//____/  
+`
+	logoColors = []string{
+		"#00ADD8", "#00BCE4", "#00CBEF", "#00D9F9", "#00E7FF",
+		"#00D9F9", "#00CBEF", "#00BCE4",
+	}
+
+	borderStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).BorderForeground(lipgloss.Color("#2c3e50"))
+	panelStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1).BorderForeground(lipgloss.Color("#34495e"))
+	
+	denyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff4757")).Bold(true)
+	allowStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#2ed573")).Bold(true)
+	askStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#ffa502")).Bold(true)
+	autoStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#a4b0be"))
+	
+	dimStyle    = lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("#747d8c"))
+	labelStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#1e90ff")).Bold(true)
+	valueStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
+	
+	footerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#a4b0be")).PaddingTop(1)
 )
 
-// auditEntry mirrors pkg/policy.AuditLog on the wire.
 type auditEntry struct {
 	Timestamp time.Time `json:"timestamp"`
 	SessionID string    `json:"session_id"`
@@ -110,37 +126,39 @@ type model struct {
 	scopeStr    string
 	width       int
 	height      int
+	ticks       int
 }
 
 type tickMsg time.Time
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func initialModel() model {
 	return model{
 		providerStr: providerString(),
 		scopeStr:    scopeString(),
+		ticks:       0,
 	}
 }
 
 func providerString() string {
 	registry, err := provider.Load()
 	if err != nil {
-		return "provider: error (" + err.Error() + ")"
+		return "error (" + err.Error() + ")"
 	}
 	cfg, err := registry.Resolve()
 	if err != nil {
-		return "provider: error (" + err.Error() + ")"
+		return "error (" + err.Error() + ")"
 	}
-	return fmt.Sprintf("%s | cheap=%s flagship=%s", cfg.ProviderName, cfg.CheapModel, cfg.FlagshipModel)
+	return fmt.Sprintf("%s (cheap=%s flagship=%s)", cfg.ProviderName, cfg.CheapModel, cfg.FlagshipModel)
 }
 
 func scopeString() string {
 	if v, explicit := os.LookupEnv("AEGIS_CGROUP_ID"); explicit && strings.TrimSpace(v) != "" {
 		if v == "0" {
-			return "host-wide (explicit, audit-only)"
+			return "host-wide (audit-only)"
 		}
 		return "cgroup " + v
 	}
@@ -150,7 +168,7 @@ func scopeString() string {
 	}
 	out, err := exec.Command("docker", "inspect", "-f", "{{.Id}}", name).Output()
 	if err != nil {
-		return "waiting for " + name + " (host capture disabled)"
+		return "waiting for " + name
 	}
 	cid := strings.TrimSpace(string(out))
 	for _, p := range []string{
@@ -163,10 +181,9 @@ func scopeString() string {
 			}
 		}
 	}
-	return "waiting for " + name + " (host capture disabled)"
+	return "waiting for " + name
 }
 
-// readNewAuditLines appends decisions logged since our last offset.
 func (m *model) readNewAuditLines() {
 	f, err := os.Open("audit.jsonl")
 	if err != nil {
@@ -179,7 +196,7 @@ func (m *model) readNewAuditLines() {
 		return
 	}
 	if fi.Size() < m.auditOffset {
-		m.auditOffset = 0 // log was rotated/truncated
+		m.auditOffset = 0
 	}
 	if fi.Size() == m.auditOffset {
 		return
@@ -210,8 +227,6 @@ func (m *model) readNewAuditLines() {
 
 func (m *model) refreshStats() {
 	s := stats{}
-	// file: prefix is required for URI params; mode=ro makes sure we
-	// never create or write to the daemon's database.
 	db, err := sql.Open("sqlite3", "file:aegis.db?mode=ro")
 	if err != nil {
 		m.stats = s
@@ -219,17 +234,17 @@ func (m *model) refreshStats() {
 	}
 	defer db.Close()
 	if err := db.Ping(); err != nil {
-		m.stats = s // no readable database yet
+		m.stats = s
 		return
 	}
 	s.dbPresent = true
 
-	db.QueryRow(`SELECT COUNT(*) FROM embeddings`).Scan(&s.vectors)
-	db.QueryRow(`SELECT COUNT(*) FROM flagged_events`).Scan(&s.decisions)
-	db.QueryRow(`SELECT COUNT(*) FROM flagged_events WHERE decided_by = 'auto_recall'`).Scan(&s.autoRecalls)
-	db.QueryRow(`SELECT ema_value FROM semantic_baseline WHERE feature_key = 'flagged_event_count' ORDER BY updated_at DESC LIMIT 1`).Scan(&s.emaBaseline)
+	db.QueryRow("SELECT COUNT(*) FROM embeddings").Scan(&s.vectors)
+	db.QueryRow("SELECT COUNT(*) FROM flagged_events").Scan(&s.decisions)
+	db.QueryRow("SELECT COUNT(*) FROM flagged_events WHERE decided_by = 'auto_recall'").Scan(&s.autoRecalls)
+	db.QueryRow("SELECT ema_value FROM semantic_baseline WHERE feature_key = 'flagged_event_count' ORDER BY updated_at DESC LIMIT 1").Scan(&s.emaBaseline)
 
-	rows, err := db.Query(`SELECT id, match_type, match_value, expires_at FROM policy_entries WHERE revoked_at IS NULL ORDER BY id DESC LIMIT 8`)
+	rows, err := db.Query("SELECT id, match_type, match_value, expires_at FROM policy_entries WHERE revoked_at IS NULL ORDER BY id DESC LIMIT 8")
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -259,11 +274,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tickMsg:
-		if !m.paused {
-			m.readNewAuditLines()
+		m.ticks++
+		if m.ticks%10 == 0 {
+			if !m.paused {
+				m.readNewAuditLines()
+			}
+			m.refreshStats()
+			m.scopeStr = scopeString()
 		}
-		m.refreshStats()
-		m.scopeStr = scopeString()
 		return m, tickCmd()
 	}
 	return m, nil
@@ -272,17 +290,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func decisionBadge(decision string, auto bool) string {
 	tag := ""
 	if auto {
-		tag = autoStyle.Render(" AUTO")
+		tag = autoStyle.Render("[AUTO]")
 	}
 	switch decision {
 	case "Deny":
-		return denyStyle.Render("DENY ") + tag
+		return denyStyle.Render("[ DENY ]") + " " + tag
 	case "Allow":
-		return allowStyle.Render("ALLOW") + tag
+		return allowStyle.Render("[ ALLOW ]") + tag
 	case "AskUser":
-		return askStyle.Render("ASK  ") + tag
+		return askStyle.Render("[ ASK ]") + "  " + tag
 	default:
-		return decision + tag
+		return "[" + decision + "] " + tag
 	}
 }
 
@@ -294,32 +312,48 @@ func truncate(s string, n int) string {
 }
 
 func (m model) View() string {
-	var b strings.Builder
-
-	b.WriteString(titleStyle.Render("🛡️  Aegis Control Plane") + "\n")
-	b.WriteString(labelStyle.Render("Provider: ") + m.providerStr + "\n")
-	b.WriteString(labelStyle.Render("Scope:    ") + m.scopeStr + "\n")
-
+	colorIdx := m.ticks % len(logoColors)
+	logoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(logoColors[colorIdx])).Bold(true)
+	
+	logoView := logoStyle.Render(logo)
+	
+	statusView := "\n" +
+		labelStyle.Render("STATUS:   ") + valueStyle.Render("[ONLINE]") + "\n" +
+		labelStyle.Render("PROVIDER: ") + valueStyle.Render(m.providerStr) + "\n" +
+		labelStyle.Render("SCOPE:    ") + valueStyle.Render(m.scopeStr)
+		
+	header := lipgloss.JoinHorizontal(lipgloss.Center, logoView, "    ", statusView)
+	
 	s := m.stats
 	autoPct := 0.0
 	if s.decisions > 0 {
 		autoPct = 100 * float64(s.autoRecalls) / float64(s.decisions)
 	}
-	dbLine := fmt.Sprintf("decisions=%d (%.0f%% auto-recalled free) vectors=%d baseline-ema=%.1f",
-		s.decisions, autoPct, s.vectors, s.emaBaseline)
+	dbLine := fmt.Sprintf("%d (%.0f%% auto-recalled)", s.decisions, autoPct)
 	if !s.dbPresent {
-		dbLine = "no aegis.db yet (start aegisd)"
+		dbLine = "waiting for daemon..."
 	}
-	b.WriteString(labelStyle.Render("Memory:   ") + dbLine + "\n\n")
+	
+	metricsBar := lipgloss.JoinHorizontal(lipgloss.Top,
+		panelStyle.Render(labelStyle.Render("Decisions: ")+valueStyle.Render(dbLine)),
+		" ",
+		panelStyle.Render(labelStyle.Render("Vectors Cached: ")+valueStyle.Render(fmt.Sprintf("%d", s.vectors))),
+		" ",
+		panelStyle.Render(labelStyle.Render("Baseline EMA: ")+valueStyle.Render(fmt.Sprintf("%.1f", s.emaBaseline))),
+	)
 
-	// Live feed
 	var feed strings.Builder
 	if len(m.feed) == 0 {
-		feed.WriteString(dimStyle.Render("waiting for adjudications... (run aegisd, then act inside the agent container)"))
+		feed.WriteString(dimStyle.Render("Waiting for telemetry... (run aegisd and interact in the container)"))
 	}
-	limit := 14
+	
+	availHeight := m.height - 20
+	if availHeight < 5 {
+		availHeight = 5
+	}
+	
 	for i, item := range m.feed {
-		if i >= limit {
+		if i >= availHeight {
 			break
 		}
 		e := item.entry
@@ -328,40 +362,46 @@ func (m model) View() string {
 		if e.Actor != "" {
 			detail = "by " + e.Actor + " | " + detail
 		}
-		line := fmt.Sprintf("%s %s %-6s %s\n       %s",
+		
+		feed.WriteString(fmt.Sprintf("%s %-15s %-6s %s\n      %s\n",
 			dimStyle.Render(ts),
 			decisionBadge(e.Decision, e.isAutoRecall()),
 			e.Event.Type,
-			truncate(e.resource(), 60),
-			dimStyle.Render(truncate(detail, 100)))
-		feed.WriteString(line + "\n")
+			truncate(e.resource(), 50),
+			dimStyle.Render(truncate(detail, 80))))
 	}
+	
+	feedTitle := "Live Adjudication Feed (audit.jsonl)"
 	if m.paused {
-		feed.WriteString(askStyle.Render("\n[PAUSED — press p to resume]"))
+		feedTitle += askStyle.Render(" [PAUSED]")
 	}
-	b.WriteString(borderStyle.Render("Live Adjudication Feed (audit.jsonl)\n\n"+feed.String()) + "\n")
-
-	// Policies
+	
+	feedPanel := panelStyle.Copy().Width(m.width * 2 / 3).Render(
+		lipgloss.NewStyle().Bold(true).Render(feedTitle) + "\n\n" + feed.String(),
+	)
+	
 	var pol strings.Builder
 	if len(s.policies) == 0 {
-		pol.WriteString(dimStyle.Render("no active kernel-block policies"))
+		pol.WriteString(dimStyle.Render("No active policies..."))
 	}
 	for _, p := range s.policies {
-		pol.WriteString(fmt.Sprintf("#%-3d %-5s %-52s expires %s\n",
-			p.ID, p.MatchType, truncate(p.MatchValue, 52), p.Expires.Format("2006-01-02")))
+		pol.WriteString(fmt.Sprintf("#%d %s\n  %s\n  %s\n",
+			p.ID, p.MatchType, truncate(p.MatchValue, 30), dimStyle.Render("exp: "+p.Expires.Format("01-02 15:04"))))
 	}
-	b.WriteString(borderStyle.Render("Active Policies (policy_entries)\n\n"+pol.String()) + "\n")
-
-	b.WriteString(dimStyle.Render("q quit · p pause feed · r refresh stats"))
-	return b.String()
+	
+	policyPanel := panelStyle.Copy().Width((m.width / 3) - 4).Render(
+		lipgloss.NewStyle().Bold(true).Render("Active Kernel Policies") + "\n\n" + pol.String(),
+	)
+	
+	body := lipgloss.JoinHorizontal(lipgloss.Top, feedPanel, "  ", policyPanel)
+	
+	footer := footerStyle.Render("[q] quit   [p] pause/resume feed   [r] force refresh")
+	
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", metricsBar, "", body, footer)
 }
 
 func main() {
-	// Read aegis.env before resolving the provider, same as aegisd and
-	// aegisctl — otherwise selections made via `provider set` are
-	// invisible to the TUI.
 	provider.LoadEnvFile()
-
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("TUI error: %v\n", err)
