@@ -14,6 +14,8 @@
 
 ---
 
+> **🚨 NOTE TO HACKATHON JUDGES:** Aegis is a deep-kernel security tool that relies on eBPF. It **WILL NOT RUN NATIVELY ON MACOS OR WINDOWS**. You **MUST** evaluate this project on a modern Linux environment (e.g., Ubuntu, Debian, Fedora, Arch) or a Linux Virtual Machine. If you are on macOS, please use OrbStack, UTM, or a Cloud instance.
+
 Aegis is an advanced security control plane that sits inside hardened container boundaries to govern autonomous agents. Instead of relying solely on static isolation (which fails against complex, emergent behavior like CVE-2026-55607), Aegis leverages eBPF kernel telemetry and Go-based retrieval-augmented adjudication to proactively detect and block anomalous system activity at the syscall level. Over time, Aegis learns the unique semantic baseline of individual repositories, progressively lowering inference costs and decision latency through autonomous LinUCB reinforcement learning.
 
 ## Table of Contents
@@ -194,8 +196,16 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 
 ## 8. Setup, Installation, and Running
 
+### ⚡ Quick Start for Judges
+To immediately launch the live system and interactive TUI without manual configuration, run:
+```bash
+./run_demo.sh
+```
+*Note: This script compiles the eBPF probes, starts the background daemon (`aegisd`), and opens the live TUI. You can then open a second terminal, launch a container, and run adversarial commands to watch the system intercept and block them in real-time.*
+
 **Prerequisites:**
-- **⚠️ Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run `make everything` from native Windows PowerShell. You must clone and execute this inside a **WSL2 (Windows Subsystem for Linux)** environment or a Linux Virtual Machine.
+- **🚨 macOS Users:** You must use a Linux VM (e.g., OrbStack, UTM, or a cloud server). macOS Darwin kernels do not support eBPF.
+- **⚠️ Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run this natively on Windows. You must execute this inside a **WSL2 (Windows Subsystem for Linux)** environment with BTF enabled.
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
 - *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
 - **WSL2 Fallbacks:** Windows Subsystem for Linux relies on a custom Microsoft kernel (`6.6.x-microsoft`) which often lacks standard `linux-headers` in upstream `apt` repositories. Aegis automatically detects this via the `install_deps.sh` script, gracefully bypasses the header requirement, and utilizes a canonical `vmlinux.h` fallback from AquaSecurity's upstream repositories to guarantee successful compilation on WSL.
