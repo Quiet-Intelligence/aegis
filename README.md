@@ -14,9 +14,10 @@
 
 ---
 
-### IMPORTANT NOTICE FOR SYSTEM EVALUATORS
-**Aegis is a deep-kernel security tool that relies on eBPF. It WILL NOT RUN NATIVELY ON MACOS OR WINDOWS.** 
-You **MUST** evaluate this project on a modern Linux environment (e.g., Ubuntu, Debian, Fedora, Arch) or a Linux Virtual Machine. If you are on macOS, please use OrbStack, UTM, or a Cloud instance. Please refer to the [Setup, Installation, and Running](#8-setup-installation-and-running) section for the zero-setup demo script and explicit environment requirements.
+> [!IMPORTANT]
+> ### IMPORTANT NOTE FOR THE EVALUATORS
+> **Aegis is a deep-kernel security tool that relies on eBPF. It WILL NOT RUN NATIVELY ON MACOS OR WINDOWS.** 
+> You **MUST** evaluate this project on a modern Linux environment (e.g., Ubuntu, Debian, Fedora, Arch) or a Linux Virtual Machine. If you are on macOS, please use OrbStack, UTM, or a Cloud instance. Please refer to the [Setup, Installation, and Running](#8-setup-installation-and-running) section for the zero-setup demo script and explicit environment requirements.
 
 Aegis is an advanced security control plane that sits inside hardened container boundaries to govern autonomous agents. Instead of relying solely on static isolation (which fails against complex, emergent behavior like CVE-2026-55607), Aegis leverages eBPF kernel telemetry and Go-based retrieval-augmented adjudication to proactively detect and block anomalous system activity at the syscall level. Over time, Aegis learns the unique semantic baseline of individual repositories, progressively lowering inference costs and decision latency through autonomous LinUCB reinforcement learning.
 
