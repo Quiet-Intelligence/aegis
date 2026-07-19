@@ -42,9 +42,7 @@ type Enforcer struct {
 	mu        sync.Mutex
 }
 
-type execApprovalKey struct {
-	Path [256]byte
-}
+// execApprovalKey removed because PID is used directly
 
 func (e *Enforcer) SetApprovedExecMap(m *ebpf.Map) {
 	e.ApprovedExecMap = m
@@ -53,21 +51,19 @@ func (e *Enforcer) SetApprovedExecMap(m *ebpf.Map) {
 // ApproveExec writes the exact one-use token consumed by the BPF LSM exec
 // guard. In audit-only unit tests a missing map is allowed; production startup
 // rejects a missing map before the control socket is exposed.
-func (e *Enforcer) ApproveExec(path string) error {
+func (e *Enforcer) ApproveExec(pid uint32) error {
 	if e.ApprovedExecMap == nil {
 		if e.AuditOnly {
 			return nil
 		}
 		return fmt.Errorf("approved_exec_map is unavailable")
 	}
-	key := execApprovalKey{}
-	copy(key.Path[:], path)
 	var now unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &now); err != nil {
 		return err
 	}
 	expires := uint64(now.Sec)*1_000_000_000 + uint64(now.Nsec) + uint64(5*time.Second)
-	return e.ApprovedExecMap.Put(&key, &expires)
+	return e.ApprovedExecMap.Put(&pid, &expires)
 }
 
 func NewEnforcer(logPath string, coll *ebpf.Collection, db *sql.DB, repoID int64, auditOnly bool) (*Enforcer, error) {

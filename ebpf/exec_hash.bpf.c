@@ -16,15 +16,11 @@ struct {
 #define MAX_ARG_COUNT 8
 #define MAX_ARG_LEN 128
 
-struct exec_approval_key {
-    char path[MAX_PATH_LEN];
-};
-
 /* One-use approvals written by aegisd after the synchronous AI verdict. */
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key, struct exec_approval_key);
+    __type(key, u32); /* PID */
     __type(value, u64); /* CLOCK_MONOTONIC expiry in ns */
 } approved_exec_map SEC(".maps");
 
@@ -120,22 +116,17 @@ int BPF_PROG(aegis_exec_guard, struct linux_binprm *bprm, int ret)
     u32 *enabled = bpf_map_lookup_elem(&exec_gate_enabled_map, &zero);
     if (!enabled || *enabled == 0) return 0;
 
-    struct exec_approval_key key = {};
-    const char *filename = NULL;
-    bpf_core_read(&filename, sizeof(filename), &bprm->filename);
-    if (filename) {
-        bpf_probe_read_kernel_str(key.path, MAX_PATH_LEN, filename);
-    }
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    u64 *approved = bpf_map_lookup_elem(&approved_exec_map, &key);
+    u64 *approved = bpf_map_lookup_elem(&approved_exec_map, &pid);
     if (!approved) return -1; /* -EPERM: no gate approval */
 
     if (bpf_ktime_get_ns() > *approved) {
-        bpf_map_delete_elem(&approved_exec_map, &key);
+        bpf_map_delete_elem(&approved_exec_map, &pid);
         return -1;
     }
 
     /* Consume the token so it cannot approve a later exec. */
-    bpf_map_delete_elem(&approved_exec_map, &key);
+    bpf_map_delete_elem(&approved_exec_map, &pid);
     return 0;
 }

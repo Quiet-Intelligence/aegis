@@ -148,7 +148,7 @@ func (s *ExecGateServer) handle(conn net.Conn) {
 	// The kernel gate only continues on an explicit, valid Allow. AskUser,
 	// errors and Deny all remain blocked before execution.
 	if decision == adjudicator.DecisionAllow {
-		if err := s.enforcer.ApproveExec(req.Path); err != nil {
+		if err := s.enforcer.ApproveExec(uint32(req.PID)); err != nil {
 			decision = adjudicator.DecisionAskUser
 			rationale = "could not arm the kernel exec approval: " + err.Error()
 		}
