@@ -49,6 +49,10 @@ struct {
 SEC("lsm/socket_connect")
 int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address, int addrlen)
 {
+    if (!sock || !address) {
+        return 0;
+    }
+
     u64 current_cgroup_id = bpf_get_current_cgroup_id();
     u32 key = 0;
     u64 *target_cgroup_id = bpf_map_lookup_elem(&target_cgroup_map, &key);
@@ -57,7 +61,9 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
         return 0;
     }
 
-    if (!address || address->sa_family != AF_INET) {
+    short family = 0;
+    bpf_core_read(&family, sizeof(family), &address->sa_family);
+    if (family != AF_INET) {
         return 0; // Only tracking IPv4 for now to maintain fixed struct size
     }
 
@@ -72,11 +78,18 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
     event->pid = bpf_get_current_pid_tgid() >> 32;
     event->cgroup_id = current_cgroup_id;
     event->timestamp_ns = bpf_ktime_get_ns();
-    event->daddr = addr_in->sin_addr.s_addr;
-    event->dport = bpf_ntohs(addr_in->sin_port);
     
-    if (sock && sock->sk) {
-        struct sock *sk = sock->sk;
+    u32 daddr = 0;
+    bpf_core_read(&daddr, sizeof(daddr), &addr_in->sin_addr.s_addr);
+    event->daddr = daddr;
+    
+    u16 dport = 0;
+    bpf_core_read(&dport, sizeof(dport), &addr_in->sin_port);
+    event->dport = bpf_ntohs(dport);
+    
+    struct sock *sk = NULL;
+    bpf_core_read(&sk, sizeof(sk), &sock->sk);
+    if (sk) {
         u16 protocol = 0;
         bpf_core_read(&protocol, sizeof(protocol), &sk->sk_protocol);
         event->protocol = protocol;

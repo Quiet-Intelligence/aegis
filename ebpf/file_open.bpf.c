@@ -139,8 +139,9 @@ int BPF_PROG(aegis_path_unlink, struct path *dir, struct dentry *dentry)
     if (!event) return 0;
 
     char path_buf[MAX_PATH_LEN] = {};
-    long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (len > 0 && len < MAX_PATH_LEN - 2) {
+    long ret = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
+    if (ret > 0 && ret < MAX_PATH_LEN - 2) {
+        u32 len = ret;
         len &= (MAX_PATH_LEN - 1);
         if (len > 0) {
             if (path_buf[len - 1] != '/') {
@@ -181,8 +182,9 @@ int BPF_PROG(aegis_path_rmdir, struct path *dir, struct dentry *dentry)
     if (!event) return 0;
 
     char path_buf[MAX_PATH_LEN] = {};
-    long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (len > 0 && len < MAX_PATH_LEN - 2) {
+    long ret = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
+    if (ret > 0 && ret < MAX_PATH_LEN - 2) {
+        u32 len = ret;
         len &= (MAX_PATH_LEN - 1);
         if (len > 0) {
             if (path_buf[len - 1] != '/') {
