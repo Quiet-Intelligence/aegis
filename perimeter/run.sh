@@ -40,11 +40,11 @@ docker run -it --rm \
     `# L0-1: Read-only root filesystem` \
     --read-only \
     `# L0-1: Only explicit scratch directory is writable` \
-    -v "${WORKSPACE_DIR}:/workspace:rw" \
+    -v "${WORKSPACE_DIR}:/workspace:rw,Z" \
     `# L0-2: Explicitly NO bind mounts of host credential paths (e.g., ~/.ssh) are provided here.` \
 	`# L0-3: No writable home/tmp/run. /workspace is the only writable storage.` \
 	`# Synchronous exec-gate socket directory (aegisd writes the socket)` \
-	-v "${GATE_DIR}:/run/aegis:ro" \
+	-v "${GATE_DIR}:/run/aegis:ro,Z" \
     `# L0-4: Drop all capabilities, add back only if absolutely necessary` \
     --cap-drop=ALL \
     `# L0-5: Apply seccomp profile to deny ptrace, mount, unshare, etc.` \
