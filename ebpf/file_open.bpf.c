@@ -53,6 +53,8 @@ struct {
     __type(value, u32); // 1 = denied
 } denied_paths_map SEC(".maps");
 
+#define MAX_FILENAME_LEN 64
+
 /**
  * @brief Event structure emitted to userspace on file open.
  */
@@ -62,6 +64,7 @@ struct file_open_event {
     u64 timestamp_ns;
     int flags;
     char path[MAX_PATH_LEN];
+    char filename[MAX_FILENAME_LEN];
 };
 
 /**
@@ -138,30 +141,21 @@ int BPF_PROG(aegis_path_unlink, struct path *dir, struct dentry *dentry)
     struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
     if (!event) return 0;
 
-    char path_buf[MAX_PATH_LEN] = {};
-    long ret = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (ret > 0 && ret < MAX_PATH_LEN - 2) {
-        u32 len = ret;
-        len &= (MAX_PATH_LEN - 1);
-        if (len > 0) {
-            if (path_buf[len - 1] != '/') {
-                path_buf[len] = '/';
-                len++;
-                len &= (MAX_PATH_LEN - 1);
-            }
-            const unsigned char *name = NULL;
-            bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
-            if (name) {
-                bpf_probe_read_kernel_str(&path_buf[len], MAX_PATH_LEN - len, name);
-            }
-        }
-    }
-
     event->pid = bpf_get_current_pid_tgid() >> 32;
     event->cgroup_id = current_cgroup_id;
     event->timestamp_ns = bpf_ktime_get_ns();
     event->flags = -1; // Special flag for unlink
-    __builtin_memcpy(event->path, path_buf, MAX_PATH_LEN);
+    
+    bpf_d_path(dir, event->path, MAX_PATH_LEN);
+
+    const unsigned char *name = NULL;
+    bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+    if (name) {
+        bpf_probe_read_kernel_str(event->filename, MAX_FILENAME_LEN, name);
+    } else {
+        event->filename[0] = '\0';
+    }
+
     bpf_ringbuf_submit(event, 0);
 
     return 0;
@@ -181,30 +175,21 @@ int BPF_PROG(aegis_path_rmdir, struct path *dir, struct dentry *dentry)
     struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
     if (!event) return 0;
 
-    char path_buf[MAX_PATH_LEN] = {};
-    long ret = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (ret > 0 && ret < MAX_PATH_LEN - 2) {
-        u32 len = ret;
-        len &= (MAX_PATH_LEN - 1);
-        if (len > 0) {
-            if (path_buf[len - 1] != '/') {
-                path_buf[len] = '/';
-                len++;
-                len &= (MAX_PATH_LEN - 1);
-            }
-            const unsigned char *name = NULL;
-            bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
-            if (name) {
-                bpf_probe_read_kernel_str(&path_buf[len], MAX_PATH_LEN - len, name);
-            }
-        }
-    }
-
     event->pid = bpf_get_current_pid_tgid() >> 32;
     event->cgroup_id = current_cgroup_id;
     event->timestamp_ns = bpf_ktime_get_ns();
     event->flags = -2; // Special flag for rmdir
-    __builtin_memcpy(event->path, path_buf, MAX_PATH_LEN);
+    
+    bpf_d_path(dir, event->path, MAX_PATH_LEN);
+
+    const unsigned char *name = NULL;
+    bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+    if (name) {
+        bpf_probe_read_kernel_str(event->filename, MAX_FILENAME_LEN, name);
+    } else {
+        event->filename[0] = '\0';
+    }
+
     bpf_ringbuf_submit(event, 0);
 
     return 0;

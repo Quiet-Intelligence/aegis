@@ -12,6 +12,8 @@ const MaxPathLen = 256
 const MaxArgCount = 8
 const MaxArgLen = 128
 
+const MaxFilenameLen = 64
+
 // H-3: Fixed-size flat structs mapped directly from eBPF
 
 type FileOpenEvent struct {
@@ -20,14 +22,33 @@ type FileOpenEvent struct {
 	TimestampNs uint64
 	Flags       int32
 	Path        [MaxPathLen]byte
+	Filename    [MaxFilenameLen]byte
 }
 
 func (e *FileOpenEvent) GetPath() string {
-	idx := bytes.IndexByte(e.Path[:], 0)
-	if idx == -1 {
-		return string(e.Path[:])
+	dirIdx := bytes.IndexByte(e.Path[:], 0)
+	dir := ""
+	if dirIdx == -1 {
+		dir = string(e.Path[:])
+	} else {
+		dir = string(e.Path[:dirIdx])
 	}
-	return string(e.Path[:idx])
+
+	fileIdx := bytes.IndexByte(e.Filename[:], 0)
+	filename := ""
+	if fileIdx == -1 {
+		filename = string(e.Filename[:])
+	} else {
+		filename = string(e.Filename[:fileIdx])
+	}
+
+	if filename == "" {
+		return dir
+	}
+	if strings.HasSuffix(dir, "/") {
+		return dir + filename
+	}
+	return dir + "/" + filename
 }
 
 func (e *FileOpenEvent) MarshalJSON() ([]byte, error) {

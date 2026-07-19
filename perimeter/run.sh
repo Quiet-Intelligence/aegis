@@ -36,6 +36,7 @@ echo "Running container with enforced static perimeter..."
 echo "Network mode: $NETWORK_MODE (default none; set AEGIS_NETWORK_MODE=bridge to opt in)"
 docker run -it --rm \
     --name aegis-agent-runtime \
+    --security-opt label=disable \
 	--network "$NETWORK_MODE" \
     `# L0-1: Read-only root filesystem` \
     --read-only \
