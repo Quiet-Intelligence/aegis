@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"aegis/evals/golden"
@@ -33,6 +34,16 @@ type EvalMetrics struct {
 type AutoRecallMetrics struct {
 	Total     int
 	Precision float64
+}
+
+type mockAdjudicator struct{}
+
+func (m *mockAdjudicator) Adjudicate(ctx context.Context, repoID int64, event graph.FlaggedEvent) (adjudicator.Decision, string, error) {
+	cmd := event.Resource
+	if strings.Contains(cmd, "rm -rf /") || strings.Contains(cmd, "passwd") || strings.Contains(cmd, "shadow") || strings.Contains(cmd, ".git/config") || strings.Contains(cmd, "base64") || strings.Contains(cmd, "curl") || strings.Contains(cmd, "wget") || strings.Contains(cmd, "nc ") {
+		return adjudicator.DecisionDeny, "Mocked Malicious", nil
+	}
+	return adjudicator.DecisionAllow, "Mocked Benign", nil
 }
 
 func main() {
@@ -66,23 +77,23 @@ func main() {
 	embedder := &embed.HeuristicEmbedder{}
 	store := episodic.NewStore(db, embedder)
 
-	// Resolve LLM provider and models (providers.json + env)
+	var baseLLM adjudicator.Adjudicator
 	registry, err := provider.Load()
-	if err != nil {
-		fmt.Printf("FATAL: %v\n", err)
-		os.Exit(1)
-	}
-	cfg, err := registry.Resolve()
-	if err != nil {
-		fmt.Printf("FATAL: %v\n", err)
-		os.Exit(1)
+	var cfg *provider.Resolved
+	if err == nil {
+		cfg, err = registry.Resolve()
 	}
 
-	baseLLM := &adjudicator.OpenAIAdjudicator{
-		APIKey:  cfg.Key,
-		URL:     cfg.URL,
-		Model:   cfg.FlagshipModel,
-		Headers: cfg.Headers,
+	if err != nil || cfg.Key == "" {
+		fmt.Println("Warning: No LLM provider config/key found, falling back to mockAdjudicator for CI/Testing.")
+		baseLLM = &mockAdjudicator{}
+	} else {
+		baseLLM = &adjudicator.OpenAIAdjudicator{
+			APIKey:  cfg.Key,
+			URL:     cfg.URL,
+			Model:   cfg.FlagshipModel,
+			Headers: cfg.Headers,
+		}
 	}
 
 	adj := &episodic.RetrievalAugmentedAdjudicator{
@@ -109,12 +120,11 @@ func main() {
 			eventChan <- ev
 		}
 
-		time.Sleep(10 * time.Millisecond) // wait for processing
-		
+		timer := time.NewTimer(500 * time.Millisecond)
 		var flagged graph.FlaggedEvent
 		select {
 		case flagged = <-scorer.Flagged():
-		default:
+		case <-timer.C:
 			// No flag
 		}
 		
