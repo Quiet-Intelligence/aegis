@@ -261,7 +261,8 @@ make everything
 
 ## 9. Results, Benchmarks, and Evaluation
 
-*The data below is dynamically generated upon successful evaluation passes via `scripts/update_metrics.py`.*
+> [!NOTE]
+> **Automated Metrics Pipeline:** The data and visualizations below are not manually maintained. They are dynamically generated and injected into this document by the `scripts/update_metrics.py` hook. This pipeline is automatically triggered upon every successful evaluation pass when running `make everything` or `make eval metrics`, ensuring these benchmarks always represent the true state of the codebase.
 
 <!-- METRICS_START -->
 
