@@ -174,7 +174,33 @@ func main() {
 	fmt.Printf("Confusion Matrix:\n")
 	fmt.Printf("  TP: %d | FP: %d\n", tp, fp)
 	fmt.Printf("  FN: %d | TN: %d\n", fn, tn)
-	fmt.Printf("Precision: %.2f\nRecall: %.2f\nF1: %.2f\n", precision, recall, f1)
+	fmt.Printf("Precision: %.2f\n", precision)
+	fmt.Printf("Recall: %.2f\n", recall)
+	fmt.Printf("F1: %.2f\n", f1)
+
+	// Update metrics_data.json
+	metricsFile := "metrics_data.json"
+	bMetrics, err := os.ReadFile(metricsFile)
+	if err == nil {
+		var metrics map[string]interface{}
+		if err := json.Unmarshal(bMetrics, &metrics); err == nil {
+			if evals, ok := metrics["evals"].(map[string]interface{}); ok {
+				evals["golden_precision"] = precision
+				evals["golden_recall"] = recall
+				evals["golden_f1"] = f1
+				evals["golden_fpr"] = float64(fp) / (float64(fp+tn) + 1e-9)
+				evals["golden_fnr"] = float64(fn) / (float64(fn+tp) + 1e-9)
+				if autoTotal > 0 {
+					evals["auto_recall_precision"] = float64(autoTP) / (float64(autoTP+autoFP) + 1e-9)
+				}
+				metrics["evals"] = evals
+				
+				updatedBytes, _ := json.MarshalIndent(metrics, "", "  ")
+				os.WriteFile(metricsFile, updatedBytes, 0644)
+				fmt.Println("Updated metrics_data.json with latest eval results.")
+			}
+		}
+	}
 	
 	if precision < 0.95 || recall < 0.95 {
 		fmt.Printf("FATAL: Precision or Recall dropped below 0.95 gate.\n")

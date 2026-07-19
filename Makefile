@@ -39,7 +39,7 @@ install-deps:
 	@echo "==> Installing host dependencies..."
 	bash scripts/install_deps.sh
 
-everything: install-deps build
+everything: install-deps build eval metrics
 	@echo "==> Setup complete! Launching TUI..."
 	./$(BIN_DIR)/aegis-tui
 
@@ -61,3 +61,7 @@ test:
 eval:
 	@echo "==> Running Evals Harness..."
 	go run $(CMD_DIR)/evalrunner/main.go
+
+metrics:
+	@echo "==> Updating README with latest metrics..."
+	python3 scripts/update_metrics.py
