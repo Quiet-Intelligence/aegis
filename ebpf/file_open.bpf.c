@@ -138,12 +138,19 @@ int BPF_PROG(aegis_path_unlink, struct path *dir, struct dentry *dentry)
     struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
     if (!event) return 0;
 
-    struct path p = {
-        .mnt = dir->mnt,
-        .dentry = dentry,
-    };
     char path_buf[MAX_PATH_LEN] = {};
-    bpf_d_path(&p, path_buf, MAX_PATH_LEN);
+    long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
+    if (len > 0 && len < MAX_PATH_LEN - 1) {
+        if (path_buf[len - 1] != '/') {
+            path_buf[len] = '/';
+            len++;
+        }
+        const unsigned char *name = NULL;
+        bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+        if (name) {
+            bpf_probe_read_kernel_str(path_buf + len, MAX_PATH_LEN - len, name);
+        }
+    }
 
     event->pid = bpf_get_current_pid_tgid() >> 32;
     event->cgroup_id = current_cgroup_id;
@@ -169,12 +176,19 @@ int BPF_PROG(aegis_path_rmdir, struct path *dir, struct dentry *dentry)
     struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
     if (!event) return 0;
 
-    struct path p = {
-        .mnt = dir->mnt,
-        .dentry = dentry,
-    };
     char path_buf[MAX_PATH_LEN] = {};
-    bpf_d_path(&p, path_buf, MAX_PATH_LEN);
+    long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
+    if (len > 0 && len < MAX_PATH_LEN - 1) {
+        if (path_buf[len - 1] != '/') {
+            path_buf[len] = '/';
+            len++;
+        }
+        const unsigned char *name = NULL;
+        bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+        if (name) {
+            bpf_probe_read_kernel_str(path_buf + len, MAX_PATH_LEN - len, name);
+        }
+    }
 
     event->pid = bpf_get_current_pid_tgid() >> 32;
     event->cgroup_id = current_cgroup_id;

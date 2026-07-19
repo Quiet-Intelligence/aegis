@@ -75,10 +75,12 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
     event->daddr = addr_in->sin_addr.s_addr;
     event->dport = bpf_ntohs(addr_in->sin_port);
     
-    struct sock *sk = sock->sk;
-    u16 protocol = 0;
-    bpf_core_read(&protocol, sizeof(protocol), &sk->sk_protocol);
-    event->protocol = protocol;
+    if (sock && sock->sk) {
+        struct sock *sk = sock->sk;
+        u16 protocol = 0;
+        bpf_core_read(&protocol, sizeof(protocol), &sk->sk_protocol);
+        event->protocol = protocol;
+    }
 
     bpf_ringbuf_submit(event, 0);
     
