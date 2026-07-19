@@ -17,13 +17,12 @@
                 "unshare",
                 "bpf",
                 "kcmp",
-                "process_vm_readv",
                 "process_vm_writev",
                 "pivot_root"
             ],
             "action": "SCMP_ACT_ERRNO",
             "args": [],
-            "comment": "L0-5: Deny dangerous syscalls not required by the agent toolset. This complements cap-drop=ALL."
+            "comment": "L0-5: Deny dangerous syscalls not required by the agent toolset. process_vm_readv is intentionally allowed for the seccomp-notify gate supervisor to copy the blocked child's exec argv. process_vm_writev remains denied."
         }
     ]
 }

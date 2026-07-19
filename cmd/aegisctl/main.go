@@ -2,21 +2,34 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"aegis/internal/bandit"
+	"aegis/pkg/control"
+	"aegis/pkg/provider"
 	_ "github.com/mattn/go-sqlite3" // needed for aegisctl standalone
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: aegisctl <policy|bandit> [args...]")
+		fmt.Println("Usage: aegisctl <policy|bandit|provider> [args...]")
 		os.Exit(1)
 	}
 
 	command := os.Args[1]
+
+	// Provider commands work without a database; load aegis.env first so
+	// `current`/`models` see the same config the daemon would.
+	if command == "provider" {
+		provider.LoadEnvFile()
+		handleProvider()
+		return
+	}
 
 	db, err := sql.Open("sqlite3", "aegis.db")
 	if err != nil {
@@ -58,9 +71,37 @@ func handlePolicy(db *sql.DB) {
 			fmt.Println("Missing policy ID")
 			return
 		}
-		id := os.Args[3]
+		idStr := os.Args[3]
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			fmt.Println("Invalid policy ID")
+			return
+		}
+
+		sockPath := "/run/aegis/control.sock"
+		if os.Geteuid() != 0 {
+			sockPath = "/tmp/aegis.sock"
+		}
+		
+		conn, err := net.Dial("unix", sockPath)
+		if err == nil {
+			defer conn.Close()
+			cmdObj := control.SocketCommand{Cmd: "revoke", ID: id}
+			json.NewEncoder(conn).Encode(cmdObj)
+			var resp control.SocketResponse
+			if err := json.NewDecoder(conn).Decode(&resp); err == nil {
+				if resp.Ok {
+					fmt.Printf("Revoked policy %d via socket (kernel block lifted). Match: %s\n", id, resp.Revoked)
+					return
+				}
+				fmt.Printf("Failed to revoke via socket: %s\n", resp.Error)
+				return
+			}
+		}
+
+		fmt.Printf("Daemon not reachable on %s, falling back to SQLite direct update.\n", sockPath)
 		db.Exec("UPDATE policy_entries SET revoked_at = ? WHERE id = ?", time.Now(), id)
-		fmt.Printf("Revoked policy %s\n", id)
+		fmt.Printf("Revoked policy %d (kernel map not updated until daemon restart)\n", id)
 	}
 }
 

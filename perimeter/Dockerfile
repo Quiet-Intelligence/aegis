@@ -1,3 +1,10 @@
+# Build the tiny seccomp-notify supervisor separately; compilers and headers
+# never enter the runtime image.
+FROM debian:bookworm-slim AS gate-builder
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev libseccomp-dev libssl-dev && rm -rf /var/lib/apt/lists/*
+COPY aegis-gate.c /src/aegis-gate.c
+RUN gcc -O2 -Wall -Wextra -o /aegis-gate /src/aegis-gate.c -lseccomp -lcrypto
+
 # Base image: minimal Debian, standard for toolchains
 FROM debian:bookworm-slim
 
@@ -15,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=gate-builder /aegis-gate /usr/local/bin/aegis-gate
+
 # L0-1: Prepare the explicit scratch/workspace directory
 RUN mkdir -p /workspace && chown agent:agent /workspace
 
@@ -27,5 +36,6 @@ USER agent
 # Set the ephemeral home explicitly
 ENV HOME=/home/agent
 
-# Default entrypoint is a bash shell
-ENTRYPOINT ["/bin/bash"]
+# Every descendant inherits the seccomp-notify filter. execve/execveat stay
+# blocked in the kernel until aegisd explicitly returns Allow.
+ENTRYPOINT ["/usr/local/bin/aegis-gate", "/bin/bash"]

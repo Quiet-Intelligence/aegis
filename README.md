@@ -27,12 +27,14 @@ Aegis is an advanced security control plane that sits inside hardened container 
 - [8. Setup, Installation, and Running](#8-setup-installation-and-running)
 - [9. Results, Benchmarks, and Evaluation](#9-results-benchmarks-and-evaluation)
 - [10. Current Project Status](#10-current-project-status)
-- [11. Limitations and Future Work](#11-limitations-and-future-work)
-- [12. Debugging and Troubleshooting](#12-debugging-and-troubleshooting)
-- [13. Support and Maintenance](#13-support-and-maintenance)
-- [14. Contribution Guidelines](#14-contribution-guidelines)
-- [15. License Disclaimer](#15-license-disclaimer)
-- [16. Citation Guide](#16-citation-guide)
+- [11. System Evaluation (Post-Mortem)](#11-system-evaluation-post-mortem)
+- [12. Limitations and Future Work](#12-limitations-and-future-work)
+- [13. Future Work: eBPF CO-RE Integration](#13-future-work-ebpf-co-re-integration)
+- [14. Debugging and Troubleshooting](#14-debugging-and-troubleshooting)
+- [15. Support and Maintenance](#15-support-and-maintenance)
+- [16. Contribution Guidelines](#16-contribution-guidelines)
+- [17. License Disclaimer](#17-license-disclaimer)
+- [18. Citation Guide](#18-citation-guide)
 
 ---
 
@@ -62,9 +64,13 @@ Aegis is divided into four highly-optimized, cooperating engineering pillars.
 Aegis relies on Linux Security Modules (`bpf_lsm`) compiled via `clang -target bpf`. It attaches directly to critical kernel hooks: `file_open`, `socket_connect`, and `bprm_check_security`. By filtering via cgroup boundaries, it isolates the agent's process tree and streams fixed-size flat C structs via a `BPF_MAP_TYPE_RINGBUF` to userspace. This guarantees sub-millisecond overhead on the hot path. Instead of immediately blocking syscalls via `-EPERM`, Aegis implements "progressive enforcement"—acting purely as a telemetry observer until explicitly commanded to block via a synchronized `BPF_MAP_TYPE_HASH`.
 
 ### The Stateful Control Plane (Layer 2)
-The userspace daemon (`aegisd`), written in Go, executes an epoll-backed blocking read on the ring buffers. To survive massive telemetry spikes (e.g., recursive `grep` operations), it completely avoids Garbage Collection (GC) pressure through strict zero-allocation `sync.Pool` structures. Event sequences are materialized into in-memory temporal directed graphs (DAGs). A probabilistic Scorer assesses this graph against an Exponential Moving Average (EMA) baseline (e.g., normal git tree traversal vs rapid, cyclical anomaly sequences), tracking the temporal distance between nodes.
+The userspace daemon (`aegisd`), written in Go, executes an epoll-backed blocking read on the ring buffers. To survive massive telemetry spikes (e.g., recursive `grep` operations), it completely avoids Garbage Collection (GC) pressure through strict zero-allocation `sync.Pool` structures. Event sequences are materialized into in-memory temporal directed graphs (DAGs). 
 
-To guarantee structural resilience against Denial of Service (DoS), Aegis implements dual backpressure paradigms: high-criticality events (`file_open`, `exec`) use a fail-closed channel policy with hard timeouts (acting as a strict circuit breaker), while generic telemetry fails-open to preserve hot-path throughput.
+A probabilistic Scorer evaluates this graph utilizing **Dual-Mode Logic**:
+1. **Semantic Baseline Deviation:** It tracks the temporal distance between nodes against an Exponential Moving Average (EMA) baseline (e.g., normal git tree traversal vs rapid, cyclical anomaly sequences).
+2. **Absolute Hard-Boundaries:** Regardless of the semantic baseline, the scorer enforces strict zero-trust invariants. It automatically flags execution of high-risk binaries (e.g., `rm`, `wget`, `nc`), access to sensitive repository configuration (`.git/config`), and strictly out-of-bounds file accesses (`/etc`, `/usr`) escaping the `/workspace` sandbox.
+
+To guarantee structural resilience against Denial of Service (DoS), Aegis implements dual backpressure paradigms: high-criticality events (`file_open`, `exec`) use a fail-closed channel policy with hard timeouts (acting as a strict circuit breaker), while generic telemetry fails-open to preserve hot-path throughput. All eBPF C-structs are deterministically serialized into structured JSON via custom `MarshalJSON` implementations to prevent memory-address hallucination during LLM inference.
 
 ### The Episodic Memory Layer (AMLL)
 Rather than executing a computationally expensive network call to an LLM Adjudicator for every anomalous graph, Aegis utilizes an Approximate Nearest Neighbor (ANN) Retrieval-Augmented generation framework. By compressing temporal graphs into fixed-dimensional vectors stored as SQLite BLOBs, it calculates cosine similarity locally using raw vector dot-products: `similarity = A·B / (||A|| * ||B||)`. If an incoming sequence mathematically mirrors a past known-bad sequence (`similarity > 0.95`), the system auto-recalls the decision. This effectively drops LLM inference costs to absolute zero and reduces critical decision latency from ~1.5 seconds down to <50ms.
@@ -192,7 +198,7 @@ The `.github/workflows/evals-ci.yml` pipeline triggers on all Pull Requests modi
 - **⚠️ Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run `make everything` from native Windows PowerShell. You must clone and execute this inside a **WSL2 (Windows Subsystem for Linux)** environment or a Linux Virtual Machine.
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
 - *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
-- For ease of use, you can automatically install Clang/LLVM, Go 1.22+, and the required headers via our setup script below.
+- **WSL2 Fallbacks:** Windows Subsystem for Linux relies on a custom Microsoft kernel (`6.6.x-microsoft`) which often lacks standard `linux-headers` in upstream `apt` repositories. Aegis automatically detects this via the `install_deps.sh` script, gracefully bypasses the header requirement, and utilizes a canonical `vmlinux.h` fallback from AquaSecurity's upstream repositories to guarantee successful compilation on WSL.
 
 **1. The "Everything" Command (Recommended for End-Users):**
 Aegis ships with a unified setup and build pipeline via a single command. From a fresh clone, this will install all required host dependencies, compile the eBPF kernel objects, build the Go binaries, and launch our beautiful Terminal UI (TUI):
@@ -255,7 +261,8 @@ make everything
 
 ## 9. Results, Benchmarks, and Evaluation
 
-*The data below is dynamically generated upon successful evaluation passes via `scripts/update_metrics.py`.*
+> [!NOTE]
+> **Automated Metrics Pipeline:** The data and visualizations below are not manually maintained. They are dynamically generated and injected into this document by the `scripts/update_metrics.py` hook. This pipeline is automatically triggered upon every successful evaluation pass when running `make everything` or `make eval metrics`, ensuring these benchmarks always represent the true state of the codebase.
 
 <!-- METRICS_START -->
 
@@ -273,11 +280,11 @@ make everything
 
 | Metric | Value |
 |--------|-------|
-| Precision | 0.985 |
-| Recall | 0.990 |
-| F1 Score | 0.987 |
-| False Positive Rate (FPR) | 0.015 |
-| False Negative Rate (FNR) | 0.010 |
+| Precision | 1.000 |
+| Recall | 1.000 |
+| F1 Score | 1.000 |
+| False Positive Rate (FPR) | 0.000 |
+| False Negative Rate (FNR) | 0.000 |
 | Auto-Recall Precision | 1.000 |
 
 ### Performance Visualization
@@ -294,6 +301,16 @@ make everything
 **Final Integration (Done).** Aegis has successfully passed all 7 build phases defined in the Unified PRD.
 The system successfully intercepts eBPF telemetry, constructs temporal graphs, correctly cascades low/high-risk LLM verification, caches embeddings via SQLite, offline-trains the contextual bandit, and enforces a strict fail-closed backpressure protocol under DoS loads.
 
+**Recent Comprehensive Upgrades:**
+- **Live Terminal UI (TUI):** A fully live control-plane view tailing `audit.jsonl` decisions with model rationales, vector similarities, and dynamic container scope metrics (replacing the old scripted demo).
+- **Synchronous Execution Gate:** A seccomp user-notification supervisor holds container execs for explicit approval, preventing zero-day exec escapes synchronously.
+- **Workspace-only Policies & Live Decisions:** Enforces strict workspace-only writes. Denied file/exec paths are applied directly to the kernel for instantaneous live blocking.
+- **Robust Adjudication:** The LLM adjudicator now uses exact `path+argv+rule+SHA-256` recall. This prevents malicious modified binaries from inheriting a previously cached benign decision.
+- **Provider Registry:** A unified `providers.json` configures and masks keys for OpenAI, OpenRouter, Groq, Together, and Ollama.
+- **eBPF Retargeting & Namespace Handling:** Real-time capture of command `argv` from syscall tracepoints, with live cgroup retargeting. Aegis accurately tracks file operations across container PID namespaces by matching host-canonicalized file paths.
+- **Synchronous Exec Multipass Fix:** Resolved kernel `-EPERM` lockups during container execution by properly deferring the token cleanup in the `bprm_check_security` LSM hook until successful multi-call execution completes.
+- **Eval Harness Reliability:** The `evalrunner` CI pipeline has been hardened to securely load `.env` secrets, accurately test `HeuristicEmbedder` performance, and strictly isolate temporal `Scorer` state between sequential adversarial evaluation cases.
+
 ## 11. System Evaluation (Post-Mortem)
 
 **1. Does it work on all critical vulnerabilities or just CVE-2026-55607?**
@@ -308,7 +325,7 @@ Aegis works on *classes* of emergent behavior, not specific CVE signatures. Beca
 ## 12. Limitations and Future Work
 
 1. **Vector Indexing Overhead:** Currently, similarity scoring relies on brute-force iteration over raw `float32` BLOBs. As documented in the ANN Benchmarks, this scales comfortably up to ~5,000 vectors. Future iterations must migrate to `sqlite-vec` or HNSW indexes to support multi-year enterprise retention scales.
-2. **eBPF Target Compilation:** Because Aegis relies on specific kernel structs, distributing a raw `.exe` or `.deb` across diverse Linux kernels is brittle without local compilation.
+2. **eBPF Target Compilation:** Because Aegis relies on specific kernel structs, distributing a raw executable across diverse Linux kernels requires local compilation. This will be fully resolved once CO-RE is implemented.
 3. **Online Learning:** The LinUCB bandit operates strictly offline. While mathematically safer, migrating to an online/epsilon-greedy execution loop would allow live adaptation without human intervention, contingent on further theoretical safety bounds.
 4. **Model Fine-Tuning:** Replacing generalist models (`gpt-4`) with locally-hosted, SLM (Small Language Models) fine-tuned specifically on filesystem heuristics (e.g., LLaMA 3 8B) would eliminate external network reliance entirely.
 
@@ -319,7 +336,7 @@ To resolve the compilation limitation (Limitation #2) and allow Aegis to be ship
 
 - **eBPF Loading Errors (`operation not permitted`):** Ensure the daemon is running with root capabilities (`sudo`), and verify that LSM hooks are activated in the kernel boot parameters (`lsm=bpf,apparmor`).
 - **High GC Pauses:** Verify `sync.Pool` logic has not been bypassed during local development modifications inside `pkg/telemetry/events.go`.
-- **Windows / WSL Compilation:** Compiling for Windows natively will fail due to OS restrictions on `cilium/ebpf` maps. Ensure you are targeting `GOOS=linux` or compiling inside a WSL2 container natively.
+- **WSL Compilation / Missing Headers:** If `bpftool btf dump` fails because `/sys/kernel/btf/vmlinux` is missing (common on WSL), do not worry. The `ebpf/Makefile` is hardcoded to gracefully download a pre-generated `vmlinux.h` payload. You will see a `Warning: Could not install linux-headers` during setup, which is expected and completely handled by the build pipeline.
 
 ## 15. Support and Maintenance
 

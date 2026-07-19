@@ -1,0 +1,128 @@
+AEGIS TODO
+==========
+
+Legend: [ ] not started   [~] in progress   [x] done
+
+
+--------------------------------------------------------------------
+[ ] 1. Live policy revocation over a daemon control socket (Option C)
+--------------------------------------------------------------------
+
+Goal: pressing `r` in the TUI (or running `aegisctl policy revoke <id>`)
+lifts a block on the LIVE daemon immediately. Today revoke only updates
+SQLite, and the path stays blocked in the kernel's denied_paths_map
+until the daemon restarts. The fix is a small control socket owned by
+aegisd that handles revoke atomically: database update plus kernel map
+delete in one step.
+
+Work items:
+
+1.1 Control socket server (new package, e.g. pkg/control)
+    - aegisd opens a unix socket at startup:
+      /run/aegis/control.sock (fallback /tmp/aegis.sock when not root)
+    - remove the socket file on graceful shutdown
+    - permissions 0600, root-owned; revocation is a privileged action
+    - simple JSON protocol, one request per connection:
+        { "cmd": "revoke",   "id": 7 }
+        { "cmd": "status" }            -> probes, events/sec, drops, mode, budget
+        { "cmd": "policies" }          -> active policy list
+    - share this socket with the status endpoint planned in issue #2
+      instead of running two servers
+
+1.2 Enforcer.Revoke (pkg/policy/enforcer.go)
+    - new method: Revoke(policyID int64) error
+    - steps inside:
+      a. SELECT match_type, match_value FROM policy_entries
+         WHERE id = ? AND revoked_at IS NULL  (error if missing/already revoked)
+      b. UPDATE policy_entries SET revoked_at = ? WHERE id = ?
+      c. if match_type = 'path' and AuditOnly is false and the kernel
+         map exists: build the [256]byte key and call
+         DeniedPathsMap.Delete(&pathBuf)
+         ("key not found" from Delete is fine, treat as already gone)
+      d. append an entry to audit.jsonl:
+         { ts, action: "revoke", policy_id, match_value, actor }
+      e. return the revoked match_value for the socket response
+
+1.3 Wire the socket command to the enforcer
+    - dispatch "revoke" -> enforcer.Revoke(id)
+    - reply: { "ok": true, "revoked": "/etc/passwd" } or { "ok": false, "error": "..." }
+
+1.4 aegisctl: prefer the socket, keep the old fallback
+    - `aegisctl policy revoke <id>` tries the control socket first
+    - if the daemon is not running, fall back to the current direct
+      SQLite update and print a note that the live kernel block (if any
+      daemon is running elsewhere) only lifts on restart
+
+1.5 TUI: the `r` key (after issue #2's policy panel exists)
+    - policy panel rows come from the socket "policies" command
+      (or a direct SQLite read until the socket exists)
+    - `r` sends { "cmd": "revoke", "id": N } and shows the result inline:
+      green "revoked, kernel block lifted" / red error text
+    - confirmation prompt when the policy was auto-promoted
+      (same deny seen in 2+ sessions): revoking a repeated signature is
+      riskier than revoking a one-shot LLM decision
+
+1.6 Audit trail
+    - every revoke is logged with actor ("tui" or "aegisctl")
+    - optionally insert a flagged_events row with decided_by = 'human'
+      so human overrides show up in decision history
+
+1.7 Tests
+    - enforcer.Revoke marks the row revoked and calls map Delete
+      (make the BPF map injectable so the test runs without root;
+      skip the real-map case when not privileged)
+    - socket round trip: start server on a temp socket, send revoke,
+      verify the DB row and the JSON reply
+    - aegisctl fallback still works when the socket is absent
+
+1.8 Docs
+    - README: socket path, permissions, protocol example:
+        echo '{"cmd":"revoke","id":7}' | socat - /run/aegis/control.sock
+    - note that AuditOnly mode still records the revoke in SQLite but
+      skips the kernel map delete (nothing is blocked there anyway)
+
+Notes:
+- cilium/ebpf Map.Delete already exists; no new dependencies
+- do not let the TUI write to the kernel map directly; the map belongs
+  to aegisd, and all mutations should go through the daemon so there is
+  exactly one writer
+
+
+--------------------------------------------------------------------
+[ ] 2. Issue #1: replace hardcoded detection rules
+--------------------------------------------------------------------
+https://github.com/Quiet-Intelligence/aegis/issues/1
+- move binary/path lists into config (env + SQLite rules table)
+- match on full argv, not binary path suffix
+- adjudicate every exec; static rules become a priority hint, not a gate
+- add lsm/path_unlink and path_rmdir probes so deletions are visible
+
+
+--------------------------------------------------------------------
+[ ] 3. Issue #2: real TUI (read-only v1)
+--------------------------------------------------------------------
+https://github.com/Quiet-Intelligence/aegis/issues/2
+- tail audit.jsonl for the live decision feed
+- SQLite reads for vectors, policies, baselines, recall hit rate
+- panels + keys (q/p/r/d); the `r` key depends on item 1 above
+
+
+--------------------------------------------------------------------
+[ ] 4. Integration merge: feature/comprehensive-bugfixes into main line
+--------------------------------------------------------------------
+- take: exec high-risk binary rule, .git/config write detection,
+  RLM cascade, WSL-tolerant install_deps
+- keep: fail-closed adjudicator, cgroup scoping, heuristic embedder,
+  loud eBPF init, 3-probe build, test suite
+- known conflict: adjudicator error handling (fail-open vs fail-closed);
+  fail-closed wins
+- do NOT merge the committed ebpf/vmlinux.h; keep generating from local
+  BTF with the wget fallback only when BTF is missing
+
+
+--------------------------------------------------------------------
+[ ] 5. Eval harness improvements
+--------------------------------------------------------------------
+- run the adversarial dataset in evalrunner (it exists but nothing reads it)
+- print confusion matrix (tp/tn/fp/fn), not just P/R/F1
+- gate on precision too, not only recall

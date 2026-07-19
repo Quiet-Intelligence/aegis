@@ -16,16 +16,26 @@ type RetrievalAugmentedAdjudicator struct {
 }
 
 func (r *RetrievalAugmentedAdjudicator) Adjudicate(ctx context.Context, repoID int64, event graph.FlaggedEvent) (adjudicator.Decision, string, error) {
-	fv := embed.BuildFeatureVector(event)
-	vec, err := r.Embedder.Embed(ctx, fv)
-	if err == nil {
-		cases, err := r.Store.Query(ctx, repoID, vec, 5)
-		if err == nil && len(cases) > 0 {
-			for _, c := range cases {
-				if c.Decision != adjudicator.DecisionAskUser {
-					rationale := fmt.Sprintf("Auto-recalled decision based on PastCase ID: %d. Original: %s", c.ID, c.Rationale)
-					_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, c.Decision, rationale, "auto_recall")
-					return c.Decision, rationale, nil
+	if event.Event != nil && event.Event.Type == "exec" {
+		// Commands use exact recall only. Never transfer a decision from a
+		// merely similar command to a destructive one.
+		if c, err := r.Store.QueryExactExec(ctx, repoID, event); err == nil && c != nil && c.Decision != adjudicator.DecisionAskUser {
+			rationale := fmt.Sprintf("Auto-recalled exact command decision from PastCase ID: %d. Original: %s", c.ID, c.Rationale)
+			_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, c.Decision, rationale, "auto_recall")
+			return c.Decision, rationale, nil
+		}
+	} else {
+		fv := embed.BuildFeatureVector(event)
+		vec, err := r.Embedder.Embed(ctx, fv)
+		if err == nil {
+			cases, err := r.Store.Query(ctx, repoID, vec, 5)
+			if err == nil && len(cases) > 0 {
+				for _, c := range cases {
+					if c.Decision != adjudicator.DecisionAskUser {
+						rationale := fmt.Sprintf("Auto-recalled decision based on PastCase ID: %d. Original: %s", c.ID, c.Rationale)
+						_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, c.Decision, rationale, "auto_recall")
+						return c.Decision, rationale, nil
+					}
 				}
 			}
 		}
