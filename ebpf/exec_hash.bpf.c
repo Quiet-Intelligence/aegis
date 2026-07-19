@@ -120,7 +120,11 @@ int BPF_PROG(aegis_exec_guard, struct linux_binprm *bprm, int ret)
     if (!enabled || *enabled == 0) return 0;
 
     struct exec_approval_key key = {};
-    bpf_d_path(&bprm->file->f_path, key.path, MAX_PATH_LEN);
+    const char *filename = NULL;
+    bpf_core_read(&filename, sizeof(filename), &bprm->filename);
+    if (filename) {
+        bpf_probe_read_kernel_str(key.path, MAX_PATH_LEN, filename);
+    }
 
     u64 *approved = bpf_map_lookup_elem(&approved_exec_map, &key);
     if (!approved) return -1; /* -EPERM: no gate approval */
