@@ -22,10 +22,11 @@ import (
 // ExecRequest is sent by the seccomp-notify supervisor while execve is
 // blocked in the kernel. Argv includes argv[0].
 type ExecRequest struct {
-	PID    int      `json:"pid"`
-	Path   string   `json:"path"`
-	Argv   []string `json:"argv"`
-	CWD    string   `json:"cwd"`
+	PID     int      `json:"pid"`
+	Path    string   `json:"path"`
+	RawPath string   `json:"raw_path"`
+	Argv    []string `json:"argv"`
+	CWD     string   `json:"cwd"`
 	SHA256 string   `json:"sha256"`
 	// Bootstrap is true only for the gate child's first exact entrypoint
 	// exec. It is trusted harness infrastructure, not a user command.
@@ -148,7 +149,11 @@ func (s *ExecGateServer) handle(conn net.Conn) {
 	// The kernel gate only continues on an explicit, valid Allow. AskUser,
 	// errors and Deny all remain blocked before execution.
 	if decision == adjudicator.DecisionAllow {
-		if err := s.enforcer.ApproveExec(uint32(req.PID)); err != nil {
+		approvalPath := req.RawPath
+		if approvalPath == "" {
+			approvalPath = req.Path
+		}
+		if err := s.enforcer.ApproveExec(approvalPath); err != nil {
 			decision = adjudicator.DecisionAskUser
 			rationale = "could not arm the kernel exec approval: " + err.Error()
 		}

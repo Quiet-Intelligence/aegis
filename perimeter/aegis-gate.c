@@ -143,7 +143,7 @@ static int sha256_file(const char *path, char out[65]) {
     return 0;
 }
 
-static int ask_aegisd(pid_t pid, const char *path, const char *sha256, char args[MAX_ARGS][MAX_ARG_LEN], int argc, int bootstrap, char *response, size_t response_cap) {
+static int ask_aegisd(pid_t pid, const char *path, const char *raw_path, const char *sha256, char args[MAX_ARGS][MAX_ARG_LEN], int argc, int bootstrap, char *response, size_t response_cap) {
     const char *socket_path = getenv("AEGIS_EXEC_GATE_SOCKET");
     if (!socket_path) socket_path = "/run/aegis/exec-gate.sock";
 
@@ -174,6 +174,8 @@ static int ask_aegisd(pid_t pid, const char *path, const char *sha256, char args
 
     fprintf(io, "{\"pid\":%d,\"path\":", pid);
     json_string(io, path);
+    fputs(",\"raw_path\":", io);
+    json_string(io, raw_path);
     fputs(",\"sha256\":", io);
     json_string(io, sha256);
     fputs(",\"argv\":[", io);
@@ -290,7 +292,7 @@ static int supervise(int notify_fd, pid_t child, const char *bootstrap_path) {
         char result[RESPONSE_LEN] = {0};
         char sha256[65] = {0};
         int hash_ok = sha256_file(path, sha256) == 0;
-        int allow = hash_ok && ask_aegisd(req->pid, path, sha256, args, argc, bootstrap, result, sizeof(result));
+        int allow = hash_ok && ask_aegisd(req->pid, path, raw_path, sha256, args, argc, bootstrap, result, sizeof(result));
         if (!hash_ok) snprintf(result, sizeof(result), "could not hash executable; refusing to continue");
         fprintf(stderr, "[aegis-gate] %s%s %s -> %s\n", allow ? "ALLOW" : "DENY", bootstrap ? " (bootstrap)" : "", path, result[0] ? result : "no response");
 
