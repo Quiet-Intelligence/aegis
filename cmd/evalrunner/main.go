@@ -15,6 +15,7 @@ import (
 	"aegis/internal/memory/episodic"
 	"aegis/pkg/adjudicator"
 	"aegis/pkg/graph"
+	"aegis/pkg/provider"
 	"aegis/pkg/telemetry"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -35,6 +36,8 @@ type AutoRecallMetrics struct {
 }
 
 func main() {
+	provider.LoadEnvFile()
+	
 	b, err := os.ReadFile("evals/golden/cases.json")
 	if err != nil {
 		panic(err)
@@ -60,11 +63,26 @@ func main() {
 	repoID := int64(999)
 	db.Exec("INSERT INTO repos (id, remote_url_hash, first_seen) VALUES (?, 'eval', ?)", repoID, time.Now())
 
-	embedder := &embed.MockEmbedder{}
+	embedder := &embed.HeuristicEmbedder{}
 	store := episodic.NewStore(db, embedder)
 
+	// Resolve LLM provider and models (providers.json + env)
+	registry, err := provider.Load()
+	if err != nil {
+		fmt.Printf("FATAL: %v\n", err)
+		os.Exit(1)
+	}
+	cfg, err := registry.Resolve()
+	if err != nil {
+		fmt.Printf("FATAL: %v\n", err)
+		os.Exit(1)
+	}
+
 	baseLLM := &adjudicator.OpenAIAdjudicator{
-		Model: "gpt-4",
+		APIKey:  cfg.Key,
+		URL:     cfg.URL,
+		Model:   cfg.FlagshipModel,
+		Headers: cfg.Headers,
 	}
 
 	adj := &episodic.RetrievalAugmentedAdjudicator{
@@ -73,13 +91,14 @@ func main() {
 		Embedder: embedder,
 	}
 
-	scorer := graph.NewScorer(db, repoID, "/workspace")
-
 	tp, tn, fp, fn := 0, 0, 0, 0
 	autoTP, autoFP := 0, 0
 	autoTotal := 0
 
 	for _, c := range cases {
+		scorer := graph.NewScorer(db, repoID, "/workspace")
+		scorer.AdjudicateAllExec = false
+		
 		// Replay sequence through scorer
 		eventChan := make(chan *telemetry.Event, 100)
 		ctx, cancel := context.WithCancel(context.Background())
