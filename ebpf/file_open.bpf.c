@@ -140,15 +140,19 @@ int BPF_PROG(aegis_path_unlink, struct path *dir, struct dentry *dentry)
 
     char path_buf[MAX_PATH_LEN] = {};
     long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (len > 0 && len < MAX_PATH_LEN - 1) {
-        if (path_buf[len - 1] != '/') {
-            path_buf[len] = '/';
-            len++;
-        }
-        const unsigned char *name = NULL;
-        bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
-        if (name) {
-            bpf_probe_read_kernel_str(path_buf + len, MAX_PATH_LEN - len, name);
+    if (len > 0 && len < MAX_PATH_LEN - 2) {
+        len &= (MAX_PATH_LEN - 1);
+        if (len > 0) {
+            if (path_buf[len - 1] != '/') {
+                path_buf[len] = '/';
+                len++;
+                len &= (MAX_PATH_LEN - 1);
+            }
+            const unsigned char *name = NULL;
+            bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+            if (name) {
+                bpf_probe_read_kernel_str(&path_buf[len], MAX_PATH_LEN - len, name);
+            }
         }
     }
 
@@ -178,15 +182,19 @@ int BPF_PROG(aegis_path_rmdir, struct path *dir, struct dentry *dentry)
 
     char path_buf[MAX_PATH_LEN] = {};
     long len = bpf_d_path(dir, path_buf, MAX_PATH_LEN);
-    if (len > 0 && len < MAX_PATH_LEN - 1) {
-        if (path_buf[len - 1] != '/') {
-            path_buf[len] = '/';
-            len++;
-        }
-        const unsigned char *name = NULL;
-        bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
-        if (name) {
-            bpf_probe_read_kernel_str(path_buf + len, MAX_PATH_LEN - len, name);
+    if (len > 0 && len < MAX_PATH_LEN - 2) {
+        len &= (MAX_PATH_LEN - 1);
+        if (len > 0) {
+            if (path_buf[len - 1] != '/') {
+                path_buf[len] = '/';
+                len++;
+                len &= (MAX_PATH_LEN - 1);
+            }
+            const unsigned char *name = NULL;
+            bpf_core_read(&name, sizeof(name), &dentry->d_name.name);
+            if (name) {
+                bpf_probe_read_kernel_str(&path_buf[len], MAX_PATH_LEN - len, name);
+            }
         }
     }
 

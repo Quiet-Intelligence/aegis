@@ -57,7 +57,7 @@ int BPF_PROG(aegis_socket_connect, struct socket *sock, struct sockaddr *address
         return 0;
     }
 
-    if (address->sa_family != AF_INET) {
+    if (!address || address->sa_family != AF_INET) {
         return 0; // Only tracking IPv4 for now to maintain fixed struct size
     }
 
