@@ -25,6 +25,9 @@ type AuditLog struct {
 	BinaryHash string               `json:"binary_sha256,omitempty"`
 	Decision   adjudicator.Decision `json:"decision"`
 	Rationale  string               `json:"rationale"`
+	Action     string               `json:"action,omitempty"`
+	PolicyID   int64                `json:"policy_id,omitempty"`
+	MatchValue string               `json:"match_value,omitempty"`
 }
 
 type Enforcer struct {
@@ -158,4 +161,46 @@ func (e *Enforcer) Enforce(flagged graph.FlaggedEvent, decision adjudicator.Deci
 			}
 		}
 	}
+}
+
+func (e *Enforcer) Revoke(policyID int64) (string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.db == nil {
+		return "", fmt.Errorf("database unavailable")
+	}
+
+	var matchType, matchValue string
+	err := e.db.QueryRow(`SELECT match_type, match_value FROM policy_entries WHERE id = ? AND revoked_at IS NULL`, policyID).Scan(&matchType, &matchValue)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("policy not found or already revoked")
+		}
+		return "", err
+	}
+
+	_, err = e.db.Exec(`UPDATE policy_entries SET revoked_at = ? WHERE id = ?`, time.Now(), policyID)
+	if err != nil {
+		return "", err
+	}
+
+	if matchType == "path" && !e.AuditOnly && e.DeniedPathsMap != nil {
+		var pathBuf [256]byte
+		copy(pathBuf[:], matchValue)
+		// Delete might return an error if it doesn't exist, which is fine
+		e.DeniedPathsMap.Delete(&pathBuf)
+	}
+
+	logEntry := AuditLog{
+		Timestamp:  time.Now(),
+		Action:     "revoke",
+		PolicyID:   policyID,
+		MatchValue: matchValue,
+		Actor:      "system",
+	}
+	b, _ := json.Marshal(logEntry)
+	e.LogFile.Write(append(b, '\n'))
+
+	return matchValue, nil
 }

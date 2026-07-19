@@ -336,6 +336,23 @@ func main() {
 		enforcer.SetApprovedExecMap(approvedMap)
 	}
 
+	// 6.5 Initialize Control Socket
+	sockPath := "/run/aegis/control.sock"
+	if os.Geteuid() != 0 {
+		sockPath = "/tmp/aegis.sock"
+	}
+	// Try creating dir for /run/aegis
+	if sockPath == "/run/aegis/control.sock" {
+		os.MkdirAll("/run/aegis", 0755)
+	}
+	ctrlSock := control.NewControlSocket(sockPath, enforcer)
+	if err := ctrlSock.Start(); err != nil {
+		fmt.Printf("WARNING: failed to start control socket on %s: %v\n", sockPath, err)
+	} else {
+		defer ctrlSock.Stop()
+		fmt.Printf("Control socket: listening on %s\n", sockPath)
+	}
+
 	if execGateEnabled {
 		socketPath := os.Getenv("AEGIS_EXEC_GATE_SOCKET")
 		if socketPath == "" {

@@ -162,8 +162,14 @@ func InitLayer(ctx context.Context, targetCgroupId uint64, chConfig ChannelConfi
 				case "file_events":
 					go readRingBuf(ctx, bpfMap, mapName, chConfig, func(b []byte) *Event {
 						ev := GetEvent()
-						ev.Type = "file_open"
 						ev.FileOpen = decodeFileOpen(b)
+						if ev.FileOpen.Flags == -1 {
+							ev.Type = "path_unlink"
+						} else if ev.FileOpen.Flags == -2 {
+							ev.Type = "path_rmdir"
+						} else {
+							ev.Type = "file_open"
+						}
 						return ev
 					})
 				case "net_events":
@@ -237,7 +243,7 @@ func readRingBuf(ctx context.Context, m *ebpf.Map, name string, chConfig Channel
 
 		ev := decoder(record.RawSample)
 
-		if ev.Type == "file_open" || ev.Type == "exec" {
+		if ev.Type == "file_open" || ev.Type == "path_unlink" || ev.Type == "path_rmdir" || ev.Type == "exec" {
 			select {
 			case chConfig.CriticalChan <- ev:
 			case <-time.After(chConfig.CriticalTimeout):

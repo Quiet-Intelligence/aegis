@@ -123,3 +123,65 @@ int BPF_PROG(aegis_file_open, struct file *file)
     
     return 0;
 }
+
+SEC("lsm/path_unlink")
+int BPF_PROG(aegis_path_unlink, struct path *dir, struct dentry *dentry)
+{
+    u64 current_cgroup_id = bpf_get_current_cgroup_id();
+    u32 key = 0;
+    u64 *target_cgroup_id = bpf_map_lookup_elem(&target_cgroup_map, &key);
+
+    if (!target_cgroup_id || *target_cgroup_id != current_cgroup_id) {
+        return 0; 
+    }
+
+    struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
+    if (!event) return 0;
+
+    struct path p = {
+        .mnt = dir->mnt,
+        .dentry = dentry,
+    };
+    char path_buf[MAX_PATH_LEN] = {};
+    bpf_d_path(&p, path_buf, MAX_PATH_LEN);
+
+    event->pid = bpf_get_current_pid_tgid() >> 32;
+    event->cgroup_id = current_cgroup_id;
+    event->timestamp_ns = bpf_ktime_get_ns();
+    event->flags = -1; // Special flag for unlink
+    __builtin_memcpy(event->path, path_buf, MAX_PATH_LEN);
+    bpf_ringbuf_submit(event, 0);
+
+    return 0;
+}
+
+SEC("lsm/path_rmdir")
+int BPF_PROG(aegis_path_rmdir, struct path *dir, struct dentry *dentry)
+{
+    u64 current_cgroup_id = bpf_get_current_cgroup_id();
+    u32 key = 0;
+    u64 *target_cgroup_id = bpf_map_lookup_elem(&target_cgroup_map, &key);
+
+    if (!target_cgroup_id || *target_cgroup_id != current_cgroup_id) {
+        return 0; 
+    }
+
+    struct file_open_event *event = bpf_ringbuf_reserve(&file_events, sizeof(*event), 0);
+    if (!event) return 0;
+
+    struct path p = {
+        .mnt = dir->mnt,
+        .dentry = dentry,
+    };
+    char path_buf[MAX_PATH_LEN] = {};
+    bpf_d_path(&p, path_buf, MAX_PATH_LEN);
+
+    event->pid = bpf_get_current_pid_tgid() >> 32;
+    event->cgroup_id = current_cgroup_id;
+    event->timestamp_ns = bpf_ktime_get_ns();
+    event->flags = -2; // Special flag for rmdir
+    __builtin_memcpy(event->path, path_buf, MAX_PATH_LEN);
+    bpf_ringbuf_submit(event, 0);
+
+    return 0;
+}

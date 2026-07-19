@@ -45,6 +45,15 @@ func main() {
 		panic(err)
 	}
 
+	advB, err := os.ReadFile("evals/adversarial/cases.json")
+	if err == nil {
+		var advCases []golden.GoldenCase
+		if err := json.Unmarshal(advB, &advCases); err == nil {
+			cases = append(cases, advCases...)
+			fmt.Printf("Loaded %d golden and %d adversarial cases\n", len(cases)-len(advCases), len(advCases))
+		}
+	}
+
 	// Setup mock control plane
 	db, _ := sql.Open("sqlite3", ":memory:")
 	memory.InitSchema(db)
@@ -142,7 +151,16 @@ func main() {
 		},
 	}
 
-	fmt.Printf("Eval Results (Golden):\nPrecision: %.2f\nRecall: %.2f\nF1: %.2f\n", precision, recall, f1)
+	fmt.Printf("Eval Results:\n")
+	fmt.Printf("Confusion Matrix:\n")
+	fmt.Printf("  TP: %d | FP: %d\n", tp, fp)
+	fmt.Printf("  FN: %d | TN: %d\n", fn, tn)
+	fmt.Printf("Precision: %.2f\nRecall: %.2f\nF1: %.2f\n", precision, recall, f1)
+	
+	if precision < 0.95 || recall < 0.95 {
+		fmt.Printf("FATAL: Precision or Recall dropped below 0.95 gate.\n")
+		os.Exit(1)
+	}
 	
 	os.MkdirAll("evals/results", 0755)
 	out, _ := json.MarshalIndent(metrics, "", "  ")

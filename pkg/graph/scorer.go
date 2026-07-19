@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -100,7 +101,7 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 	var resource string
 
 	switch ev.Type {
-	case "file_open":
+	case "file_open", "path_unlink", "path_rmdir":
 		if ev.FileOpen != nil {
 			sessionID = fmt.Sprintf("%d-%d", ev.FileOpen.Pid, ev.FileOpen.CgroupId)
 			resource = ev.FileOpen.GetPath()
@@ -151,19 +152,25 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 	ruleName := ""
 
 	// Always flag out-of-bounds file accesses and sensitive modifications
-	if ev.Type == "file_open" {
-		// ld.so.cache is routine startup noise for every dynamic binary.
-		// The command exec itself is adjudicated, so reviewing this again
-		// only creates duplicate decisions and hides the useful command.
+	if ev.Type == "file_open" || ev.Type == "path_unlink" || ev.Type == "path_rmdir" {
 		isLoaderNoise := resource == "/etc/ld.so.cache"
 		if !isLoaderNoise && !strings.HasPrefix(resource, s.workspaceDir) && !strings.HasPrefix(resource, "/lib") && !strings.HasPrefix(resource, "/usr") && !strings.HasPrefix(resource, "/proc") && !strings.HasPrefix(resource, "/dev") {
 			isFlagged = true
-			ruleName = "File access outside workspace sandbox"
+			if ev.Type == "file_open" {
+				ruleName = "File access outside workspace sandbox"
+			} else {
+				ruleName = "File deletion outside workspace sandbox"
+			}
 		}
 		// Catch .git/config modifications (O_WRONLY=1, O_RDWR=2)
-		if strings.Contains(resource, ".git/config") && (ev.FileOpen.Flags&3 != 0) {
-			isFlagged = true
-			ruleName = "Modification of repository configuration"
+		if strings.Contains(resource, ".git/config") {
+			if ev.Type == "file_open" && (ev.FileOpen.Flags&3 != 0) {
+				isFlagged = true
+				ruleName = "Modification of repository configuration"
+			} else if ev.Type == "path_unlink" || ev.Type == "path_rmdir" {
+				isFlagged = true
+				ruleName = "Deletion of repository configuration"
+			}
 		}
 	}
 
@@ -176,9 +183,24 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 			isFlagged = true
 			ruleName = "Command execution"
 		}
-		if strings.HasSuffix(binPath, "/rm") || strings.HasSuffix(binPath, "/wget") || strings.HasSuffix(binPath, "/curl") || strings.HasSuffix(binPath, "/nc") {
-			isFlagged = true
-			ruleName = "Execution of high-risk binary"
+		
+		highRisk := os.Getenv("AEGIS_HIGH_RISK_BINARIES")
+		if highRisk == "" {
+			highRisk = "rm,wget,curl,nc"
+		}
+		
+		actorFull := strings.TrimSpace(binPath + " " + ev.Exec.GetArgs())
+		for _, b := range strings.Split(highRisk, ",") {
+			b = strings.TrimSpace(b)
+			if b == "" {
+				continue
+			}
+			// Match full argv, not just suffix of binary
+			if strings.Contains(actorFull, "/"+b+" ") || strings.HasSuffix(actorFull, "/"+b) || strings.HasPrefix(actorFull, b+" ") || actorFull == b {
+				isFlagged = true
+				ruleName = "Execution of high-risk binary (" + b + ")"
+				break
+			}
 		}
 	}
 
