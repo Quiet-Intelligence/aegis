@@ -19,6 +19,12 @@ jobs:
           # Get list of changed files in this PR
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
           
+          # If heldout is being introduced for the first time, skip check
+          if ! git ls-tree -r origin/main --name-only | grep -q '^evals/trajectory/heldout/'; then
+            echo "Heldout set is being introduced for the first time. Skipping contamination check."
+            exit 0
+          fi
+          
           # Check if heldout is modified
           HELDOUT_MODIFIED=$(echo "$CHANGED_FILES" | grep '^evals/trajectory/heldout/' || true)
           

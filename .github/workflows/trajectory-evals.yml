@@ -20,9 +20,9 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Run Trajectory Evals
+      - name: Run Stateful Trajectory Evals
         run: |
-          go run cmd/evalrunner/main.go cmd/evalrunner/trajectory.go --trajectory > trajectory_eval_report.md
+          go run ./cmd/evalrunner -trajectory > trajectory_eval_report.md
           
       - name: Format Report
         run: |

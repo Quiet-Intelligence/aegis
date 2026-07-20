@@ -60,11 +60,11 @@ test:
 
 eval:
 	@echo "==> Running Evals Harness (EV1 - Static Golden)..."
-	go run $(CMD_DIR)/evalrunner/main.go
+	go run ./$(CMD_DIR)/evalrunner
 
 eval-trajectory:
 	@echo "==> Running Stateful Trajectory Evals (EV2)..."
-	go run $(CMD_DIR)/evalrunner/main.go -trajectory
+	go run ./$(CMD_DIR)/evalrunner -trajectory
 
 prm-train:
 	@echo "==> Running PRM Data Generation and Offline Training..."
