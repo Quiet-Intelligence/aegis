@@ -27,7 +27,21 @@ def main():
     plt.savefig('docs/images/ann_latency.png', dpi=300)
     plt.close()
 
-    # Plot 2: Golden Eval Metrics
+    # Plot 2: Pipeline Latency Breakdown
+    labels = ['p50 Latency', 'p95 Latency', 'p99 Latency']
+    l_values = [data['throughput']['p50_ms'], data['throughput']['p95_ms'], data['throughput']['p99_ms']]
+    
+    plt.figure(figsize=(6, 5))
+    plt.plot(labels, l_values, marker='s', color='#d35400', linewidth=2, markersize=8)
+    plt.fill_between(labels, l_values, color='#e67e22', alpha=0.3)
+    plt.title('eBPF to Go Pipeline Latency Profile', fontsize=14)
+    plt.ylabel('Milliseconds (ms)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig('docs/images/latency_profile.png', dpi=300)
+    plt.close()
+
+    # Plot 3: Golden Eval Metrics (Keep as baseline comparison)
     metrics = ['Precision', 'Recall', 'F1 Score', 'Auto-Recall Prec']
     values = [
         data['evals']['golden_precision'],
@@ -38,7 +52,7 @@ def main():
 
     plt.figure(figsize=(8, 5))
     bars = plt.bar(metrics, values, color=['#3498db', '#2ecc71', '#9b59b6', '#f1c40f'])
-    plt.title('Golden Dataset Evaluation Metrics', fontsize=14)
+    plt.title('EV1: Static Golden Dataset (CI Smoke-Test)', fontsize=14)
     plt.ylabel('Score (0.0 to 1.0)', fontsize=12)
     plt.ylim(0.9, 1.01)
     for bar in bars:
@@ -49,22 +63,26 @@ def main():
     plt.savefig('docs/images/eval_metrics.png', dpi=300)
     plt.close()
 
-    # Plot 3: Trajectory Eval Metrics (EV2)
-    traj_metrics = ['Adversarial\nSurvival', 'Legitimate\nSuccess']
-    # Normalizing survival (lower is better, but we plot steps survived out of 50)
-    # Actually, let's plot "Deterrence Rate" (1 - mean/50) and "Success Rate"
-    deterrence = 1.0 - (data['trajectory_evals']['mean_steps_survived'] / 50.0)
-    success_rate = data['trajectory_evals']['task_success_rate']
+    # Plot 4: Trajectory Eval Metrics (EV2) - More complex stacked/side-by-side
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
     
-    plt.figure(figsize=(6, 5))
-    bars2 = plt.bar(traj_metrics, [deterrence, success_rate], color=['#e74c3c', '#2ecc71'])
-    plt.title('Trajectory Evaluation (EV2)', fontsize=14)
-    plt.ylabel('Rate (0.0 to 1.0)', fontsize=12)
-    plt.ylim(0.0, 1.1)
-    for bar in bars2:
-        yval = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2.0, yval + 0.02, f'{yval:.3f}', ha='center', va='bottom', fontsize=11)
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    # Subplot A: Adversarial Survival
+    deterrence = 1.0 - (data['trajectory_evals']['mean_steps_survived'] / 50.0)
+    ax1.bar(['Deterrence Rate'], [deterrence], color='#e74c3c')
+    ax1.set_title('Red-Team Neutralization', fontsize=12)
+    ax1.set_ylim(0, 1.1)
+    ax1.text(0, deterrence + 0.02, f'{deterrence:.3f}', ha='center', fontsize=11)
+    ax1.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+    # Subplot B: Legitimate Workflow Outcomes
+    success = data['trajectory_evals']['task_success_rate']
+    refusal = data['trajectory_evals']['over_refusals'] / data['trajectory_evals']['legitimate_workflows']
+    
+    wedges, texts, autotexts = ax2.pie([success, refusal], labels=['Task Success', 'Over-Refusal'], 
+                                       autopct='%1.1f%%', colors=['#2ecc71', '#95a5a6'], startangle=90)
+    ax2.set_title('Legitimate Workflow UX Cost', fontsize=12)
+    
+    plt.suptitle('EV2: Stateful Trajectory Metrics', fontsize=14, y=1.05)
     plt.tight_layout()
     plt.savefig('docs/images/trajectory_metrics.png', dpi=300)
     plt.close()
@@ -137,6 +155,10 @@ All dynamically generated policy boundaries are modeled as formal ABAC entities 
 <br>
 <div align="center">
   <img src="docs/images/ann_latency.png" alt="ANN Latency Graph" width="60%">
+</div>
+<br>
+<div align="center">
+  <img src="docs/images/latency_profile.png" alt="Pipeline Latency Graph" width="60%">
 </div>
 <br>
 <div align="center">

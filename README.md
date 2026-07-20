@@ -358,6 +358,10 @@ All dynamically generated policy boundaries are modeled as formal ABAC entities 
 </div>
 <br>
 <div align="center">
+  <img src="docs/images/latency_profile.png" alt="Pipeline Latency Graph" width="60%">
+</div>
+<br>
+<div align="center">
   <img src="docs/images/eval_metrics.png" alt="Eval Metrics Graph" width="60%">
 </div>
 <br>
