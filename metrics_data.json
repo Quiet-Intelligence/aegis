@@ -35,5 +35,17 @@
     "p50_ms": 0.045,
     "p95_ms": 0.112,
     "p99_ms": 0.42
+  },
+  "trajectory_evals": {
+    "adversarial_runs": 20,
+    "mean_steps_survived": 1.0,
+    "variance_steps": 0.0,
+    "legitimate_workflows": 3,
+    "over_refusals": 1,
+    "task_success_rate": 0.6667
+  },
+  "prm": {
+    "labeled_steps_used": 2,
+    "r2_score": -0.0029
   }
 }
