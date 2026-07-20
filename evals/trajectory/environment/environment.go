@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"aegis/internal/memory/embed"
@@ -113,24 +114,36 @@ func (e *Environment) simulateAction(a Action) []telemetry.Event {
 			},
 		})
 		e.setPath(&events[0], "/usr/bin/git")
+		e.setArgs(&events[0], "worktree add")
 		
 		events = append(events, telemetry.Event{
 			Type: "file_open",
 			FileOpen: &telemetry.FileOpenEvent{
 				Pid: e.pid,
 				TimestampNs: nowNs + 1000,
+				Flags: 2, // O_RDWR
 			},
 		})
-		e.setPath(&events[1], fmt.Sprintf(".git/worktrees/%s/config", a.Target))
+		e.setPath(&events[1], fmt.Sprintf("/workspace/.git/worktrees/%s/config", a.Target))
 	case ActionTouch, ActionWrite:
+		flags := int32(0)
+		if a.Type == ActionWrite {
+			flags = 2
+		}
 		events = append(events, telemetry.Event{
 			Type: "file_open",
 			FileOpen: &telemetry.FileOpenEvent{
 				Pid: e.pid,
 				TimestampNs: nowNs,
+				Flags: flags,
 			},
 		})
-		e.setPath(&events[0], a.Target)
+		
+		targetPath := a.Target
+		if !strings.HasPrefix(targetPath, "/") {
+			targetPath = "/workspace/" + targetPath
+		}
+		e.setPath(&events[0], targetPath)
 	case ActionMkdir:
 		// Mkdir often triggers a file open or is tracked in a real environment.
 		// For simulation, we might skip it or emit a benign event.
@@ -149,6 +162,17 @@ func (e *Environment) setPath(ev *telemetry.Event, path string) {
 		for i, c := range []byte(path) {
 			if i < len(ev.FileOpen.Path) {
 				ev.FileOpen.Path[i] = c
+			}
+		}
+	}
+}
+
+func (e *Environment) setArgs(ev *telemetry.Event, args string) {
+	if ev.Exec != nil {
+		ev.Exec.Argc = 2 // Include the binary itself and one arg (simplified)
+		for i, c := range []byte(args) {
+			if i < len(ev.Exec.Args[1]) {
+				ev.Exec.Args[1][i] = c
 			}
 		}
 	}

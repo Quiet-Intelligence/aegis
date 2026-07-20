@@ -1,12 +1,9 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
-	"math"
 	"sort"
-	"strings"
 
 	"aegis/evals/trajectory/environment"
 	"aegis/evals/trajectory/generator"

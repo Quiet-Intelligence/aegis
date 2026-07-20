@@ -41,7 +41,7 @@ type mockAdjudicator struct{}
 
 func (m *mockAdjudicator) Adjudicate(ctx context.Context, repoID int64, event graph.FlaggedEvent) (adjudicator.Decision, string, error) {
 	cmd := event.Resource
-	if strings.Contains(cmd, "rm -rf /") || strings.Contains(cmd, "passwd") || strings.Contains(cmd, "shadow") || strings.Contains(cmd, ".git/config") || strings.Contains(cmd, "base64") || strings.Contains(cmd, "curl") || strings.Contains(cmd, "wget") || strings.Contains(cmd, "nc ") {
+	if strings.Contains(cmd, "rm -rf /") || strings.Contains(cmd, "passwd") || strings.Contains(cmd, "shadow") || strings.Contains(cmd, ".git/config") || strings.Contains(cmd, "base64") || strings.Contains(cmd, "curl") || strings.Contains(cmd, "wget") || strings.Contains(cmd, "nc ") || strings.Contains(cmd, "fake_worktree") {
 		return adjudicator.DecisionDeny, "Mocked Malicious", nil
 	}
 	return adjudicator.DecisionAllow, "Mocked Benign", nil
@@ -73,10 +73,16 @@ func main() {
 	}
 
 	// Setup mock control plane
-	db, _ := sql.Open("sqlite3", ":memory:")
-	memory.InitSchema(db)
+	db, _ := sql.Open("sqlite3", "file::memory:?cache=shared")
+	if err := memory.InitSchema(db); err != nil {
+		fmt.Printf("FATAL: Failed to init schema: %v\n", err)
+		os.Exit(1)
+	}
 	repoID := int64(999)
 	db.Exec("INSERT INTO repos (id, remote_url_hash, first_seen) VALUES (?, 'eval', ?)", repoID, time.Now())
+	
+	// Add mock semantic baseline so deviations can be flagged during evaluation
+	db.Exec("INSERT INTO semantic_baseline (repo_id, feature_key, ema_value, updated_at) VALUES (?, 'flagged_event_count', 5.0, ?)", repoID, time.Now())
 
 	embedder := &embed.HeuristicEmbedder{}
 	store := episodic.NewStore(db, embedder)
