@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"sort"
 
 	"aegis/evals/trajectory/environment"
@@ -110,7 +111,15 @@ func RunTrajectoryEvals(db *sql.DB, repoID int64, baseLLM adjudicator.Adjudicato
 
 	// Scaffolding Disclosure & Cost (EV2-8, EV2-9, EV2-10)
 	fmt.Println("\n--- Scaffolding & Cost Disclosure ---")
-	fmt.Printf("Model Version         : OpenAI GPT-4o (or fallback)\n")
+	provider := os.Getenv("AEGIS_PROVIDER")
+	if provider == "" {
+		provider = "openai"
+	}
+	model := os.Getenv("AEGIS_CHEAP_MODEL")
+	if model == "" {
+		model = "gpt-4o"
+	}
+	fmt.Printf("Model Version         : %s (Provider: %s)\n", model, provider)
 	fmt.Printf("Adjudicator Prompt    : v1.0.0 (Standard System Prompt)\n")
 	fmt.Printf("Threshold Config      : AUTO_DECIDE_THRESHOLD=0.85\n")
 	fmt.Printf("Cost Per Decision     : ~$0.001 (LLM Tier)\n")
