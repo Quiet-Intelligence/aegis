@@ -110,11 +110,17 @@ def main():
 | MLPR R² Score | {data['prm']['r2_score']:.4f} |
 
 ### Performance Visualizations
-
+<br>
 <div align="center">
-  <img src="docs/images/ann_latency.png" alt="ANN Latency Graph" width="30%">
-  <img src="docs/images/eval_metrics.png" alt="Eval Metrics Graph" width="30%">
-  <img src="docs/images/trajectory_metrics.png" alt="Trajectory Metrics Graph" width="30%">
+  <img src="docs/images/ann_latency.png" alt="ANN Latency Graph" width="60%">
+</div>
+<br>
+<div align="center">
+  <img src="docs/images/eval_metrics.png" alt="Eval Metrics Graph" width="60%">
+</div>
+<br>
+<div align="center">
+  <img src="docs/images/trajectory_metrics.png" alt="Trajectory Metrics Graph" width="60%">
 </div>
 """
 
