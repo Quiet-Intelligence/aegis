@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -47,6 +48,9 @@ func (m *mockAdjudicator) Adjudicate(ctx context.Context, repoID int64, event gr
 }
 
 func main() {
+	runTrajectory := flag.Bool("trajectory", false, "Run deep trajectory evaluations")
+	flag.Parse()
+
 	provider.LoadEnvFile()
 	
 	b, err := os.ReadFile("evals/golden/cases.json")
@@ -220,4 +224,8 @@ func main() {
 	os.MkdirAll("evals/results", 0755)
 	out, _ := json.MarshalIndent(metrics, "", "  ")
 	os.WriteFile(filepath.Join("evals/results", fmt.Sprintf("eval_%d.json", time.Now().Unix())), out, 0644)
+
+	if *runTrajectory {
+		RunTrajectoryEvals(db, repoID, baseLLM)
+	}
 }
