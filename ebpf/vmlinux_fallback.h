@@ -1475,3 +1475,5 @@ struct icmp6hdr {
 #pragma clang attribute pop
 
 #endif
+s t r u c t   t r a c e _ e v e n t _ r a w _ s y s _ e n t e r   {   s t r u c t   {   u n s i g n e d   l o n g   l o n g   R E C ;   }   _ _ a t t r i b u t e _ _ ( ( p r e s e r v e _ a c c e s s _ i n d e x ) ) ;   l o n g   i n t   i d ;   u n s i g n e d   l o n g   a r g s [ 6 ] ;   c h a r   _ _ d a t a [ 0 ] ;   } ;  
+ 
