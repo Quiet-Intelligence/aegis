@@ -1,0 +1,36 @@
+name: Contamination Check
+
+on:
+  pull_request:
+    paths:
+      - 'evals/trajectory/heldout/**'
+
+jobs:
+  check-contamination:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for concurrent modifications
+        run: |
+          # Get list of changed files in this PR
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          
+          # Check if heldout is modified
+          HELDOUT_MODIFIED=$(echo "$CHANGED_FILES" | grep '^evals/trajectory/heldout/' || true)
+          
+          if [ -n "$HELDOUT_MODIFIED" ]; then
+            # If heldout is modified, check if graph, adjudicator, or bandit are also modified
+            TUNING_MODIFIED=$(echo "$CHANGED_FILES" | grep -E '^(pkg/graph/|pkg/adjudicator/|internal/bandit/)' || true)
+            
+            if [ -n "$TUNING_MODIFIED" ]; then
+              echo "::error::Contamination Detected: You cannot modify tuning logic (graph/adjudicator/bandit) in the same PR that modifies the held-out trajectory set."
+              echo "Files modified:"
+              echo "$TUNING_MODIFIED"
+              exit 1
+            fi
+          fi
+          echo "Contamination check passed."
