@@ -9,8 +9,14 @@ import (
 )
 
 type RLMCascade struct {
+	SFTTier     adjudicator.Adjudicator // Fine-tuned local model (e.g. Llama 3 8B)
 	CheapLLM    adjudicator.Adjudicator
 	FlagshipLLM adjudicator.Adjudicator
+	
+	// SFTEnabled is the config flag to disable the SFT tier by default.
+	// REQUIREMENT (RL2-10): A fresh full run of both the static evals harness 
+	// and the trajectory harness must be logged and reviewed before enabling this.
+	SFTEnabled  bool
 }
 
 func (c *RLMCascade) Adjudicate(ctx context.Context, repoID int64, event graph.FlaggedEvent) (adjudicator.Decision, string, error) {
@@ -28,6 +34,14 @@ func (c *RLMCascade) Adjudicate(ctx context.Context, repoID int64, event graph.F
 
 	if isHighRisk && c.FlagshipLLM != nil {
 		return c.FlagshipLLM.Adjudicate(ctx, repoID, event)
+	}
+
+	if c.SFTEnabled && c.SFTTier != nil {
+		// Attempt SFT Tier first for low-risk events
+		dec, rat, err := c.SFTTier.Adjudicate(ctx, repoID, event)
+		if err == nil {
+			return dec, rat, nil
+		}
 	}
 
 	if c.CheapLLM != nil {
