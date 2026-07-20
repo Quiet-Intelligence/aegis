@@ -12,7 +12,7 @@ OBJECTS := $(addsuffix .bpf.o,$(PROGS))
 
 all: vmlinux.h $(OBJECTS)
 
-vmlinux.h:
+vmlinux.h: vmlinux_fallback.h
 	@echo "Generating vmlinux.h from local kernel BTF..."
 	-$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h.tmp 2>/dev/null || true
 	@if [ ! -s vmlinux.h.tmp ]; then \
