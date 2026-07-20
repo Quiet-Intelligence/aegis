@@ -39,6 +39,26 @@ func InitSchema(db *sql.DB) error {
 			FOREIGN KEY(repo_id) REFERENCES repos(id),
 			FOREIGN KEY(embedding_id) REFERENCES embeddings(id)
 		);`,
+		`CREATE TABLE IF NOT EXISTS decision_traces (
+			session_id TEXT PRIMARY KEY,
+			repo_id INTEGER NOT NULL,
+			context_events_json TEXT NOT NULL,
+			retrieved_cases_json TEXT NOT NULL,
+			decision TEXT NOT NULL,
+			rationale TEXT NOT NULL,
+			FOREIGN KEY(session_id) REFERENCES sessions(id),
+			FOREIGN KEY(repo_id) REFERENCES repos(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS prm_labels (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			trajectory_id TEXT NOT NULL,
+			step_index INTEGER NOT NULL,
+			event_context_json TEXT NOT NULL,
+			prm_score REAL,
+			label_source TEXT CHECK(label_source IN ('human', 'redteam_self_label')) NOT NULL,
+			labeled_at DATETIME NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_prm_labels_traj ON prm_labels(trajectory_id);`,
 		`CREATE TABLE IF NOT EXISTS semantic_baseline (
 			repo_id INTEGER NOT NULL,
 			feature_key TEXT NOT NULL,
