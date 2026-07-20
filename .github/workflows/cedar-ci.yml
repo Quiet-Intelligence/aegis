@@ -16,7 +16,7 @@ jobs:
 
       - name: Validate Schema
         run: |
-          cedar validate --schema internal/policy/cedar/schema.json --policies internal/policy/cedar/test_policy.cedar
+          cedar validate --schema-format json --schema internal/policy/cedar/schema.json --policies internal/policy/cedar/test_policy.cedar
           
       - name: Check for Vacuous Policies
         # Assuming test_policy.cedar is checked in
