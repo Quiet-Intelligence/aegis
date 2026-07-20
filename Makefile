@@ -39,7 +39,7 @@ install-deps:
 	@echo "==> Installing host dependencies..."
 	bash scripts/install_deps.sh
 
-everything: install-deps build eval metrics
+everything: install-deps build test-cedar eval eval-trajectory prm-train metrics
 	@echo "==> Setup complete! Launching TUI..."
 	./$(BIN_DIR)/aegis-tui
 
@@ -59,8 +59,21 @@ test:
 	go test ./...
 
 eval:
-	@echo "==> Running Evals Harness..."
+	@echo "==> Running Evals Harness (EV1 - Static Golden)..."
 	go run $(CMD_DIR)/evalrunner/main.go
+
+eval-trajectory:
+	@echo "==> Running Stateful Trajectory Evals (EV2)..."
+	go run $(CMD_DIR)/evalrunner/main.go -trajectory
+
+prm-train:
+	@echo "==> Running PRM Data Generation and Offline Training..."
+	go run scripts/stub_prm_labels.go
+	python3 scripts/train_prm.py
+
+test-cedar:
+	@echo "==> Running Cedar Formal Policy Compilation Tests..."
+	go test ./internal/policy/cedar -v
 
 metrics:
 	@echo "==> Updating README with latest metrics..."
