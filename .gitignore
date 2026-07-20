@@ -24,7 +24,6 @@ Thumbs.db
 # Test/Eval output
 eval_output.txt
 evals/results/
-docs/images/
 audit.jsonl*
 perimeter/test_workspace/
 
