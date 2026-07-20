@@ -61,6 +61,16 @@ func InitSchema(db *sql.DB) error {
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_flagged_repo ON flagged_events(repo_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_policy_expires ON policy_entries(expires_at);`,
+		`CREATE TABLE IF NOT EXISTS decision_traces (
+			session_id TEXT PRIMARY KEY,
+			repo_id INTEGER NOT NULL,
+			context_events_json TEXT NOT NULL,
+			retrieved_cases_json TEXT NOT NULL,
+			decision TEXT NOT NULL,
+			rationale TEXT NOT NULL,
+			FOREIGN KEY(session_id) REFERENCES sessions(id),
+			FOREIGN KEY(repo_id) REFERENCES repos(id)
+		);`,
 	}
 
 	for _, q := range queries {
