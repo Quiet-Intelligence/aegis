@@ -16,10 +16,10 @@ vmlinux.h:
 	@echo "Generating vmlinux.h from local kernel BTF..."
 	-$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h.tmp 2>/dev/null || true
 	@if [ ! -s vmlinux.h.tmp ]; then \
-		echo "Local BTF extraction failed (common on WSL). Downloading generic x86_64 vmlinux.h fallback..."; \
-		wget -qO vmlinux.h.tmp https://raw.githubusercontent.com/libbpf/libbpf-bootstrap/main/src/vmlinux.h; \
+		echo "Local BTF extraction failed (common on WSL or custom kernels). Using bundled x86_64 vmlinux_fallback.h..."; \
+		cp vmlinux_fallback.h vmlinux.h.tmp; \
 	fi
-	@test -s vmlinux.h.tmp || { echo "FATAL: could not obtain vmlinux.h (no local BTF and download failed)"; rm -f vmlinux.h.tmp; exit 1; }
+	@test -s vmlinux.h.tmp || { echo "FATAL: could not obtain vmlinux.h"; rm -f vmlinux.h.tmp; exit 1; }
 	@mv vmlinux.h.tmp vmlinux.h
 
 %.bpf.o: %.bpf.c vmlinux.h
