@@ -17,7 +17,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: aegisctl <policy|bandit|provider> [args...]")
+		fmt.Println("Usage: aegisctl <policy|bandit|provider|review> [args...]")
 		os.Exit(1)
 	}
 
@@ -42,6 +42,8 @@ func main() {
 		handlePolicy(db)
 	} else if command == "bandit" {
 		handleBandit(db)
+	} else if command == "review" {
+		handleReview(db)
 	} else {
 		fmt.Printf("Unknown command: %s\n", command)
 		os.Exit(1)
@@ -141,6 +143,30 @@ func handleBandit(db *sql.DB) {
 		fmt.Printf("Logged approver and timestamp.\n")
 	} else {
 		fmt.Printf("Unknown bandit command: %s\n", subcommand)
+		os.Exit(1)
+	}
+}
+
+func handleReview(db *sql.DB) {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: aegisctl review <queue> [args...]")
+		os.Exit(1)
+	}
+
+	subcommand := os.Args[2]
+
+	if subcommand == "queue" {
+		// Mock logic to select from PRM labels and episodic memory
+		// Prioritized by low confidence or SFT/Flagship disagreement
+		fmt.Println("--- Active Learning Review Queue ---")
+		fmt.Println("ID      Confidence   SFT/Flagship Disagree   Summary")
+		fmt.Println("----------------------------------------------------------------")
+		fmt.Println("TRJ-001 0.45         YES                     Suspicious worktree loop")
+		fmt.Println("TRJ-002 0.51         YES                     Unexpected netcat spawn")
+		fmt.Println("TRJ-003 0.60         NO                      Heavily obfuscated script")
+		fmt.Println("\nRun 'aegisctl review confirm <ID>' or 'aegisctl review revoke <ID>' to provide fan-out feedback.")
+	} else {
+		fmt.Printf("Unknown review command: %s\n", subcommand)
 		os.Exit(1)
 	}
 }

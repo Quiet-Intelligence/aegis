@@ -83,6 +83,12 @@ Rather than executing a computationally expensive network call to an LLM Adjudic
 ### Contextual Bandit & Evaluation (RLE)
 Aegis governs its sensitivity parameters (`AUTO_DECIDE_THRESHOLD`, anomaly constants) using a LinUCB (Linear Upper Confidence Bound) Contextual Bandit. The algorithm is trained offline against a rigorously labeled Golden Dataset. It utilizes an asymmetric reward matrix designed specifically for zero-trust security: False Negatives (silent security misses) are penalized brutally at `-5.0`, while False Positives (overly aggressive blocking) are penalized at `-1.0`. The LinUCB algorithm maximizes expected reward by iteratively updating its weight vectors: `θ = A⁻¹ * b`. A CI/CD integration enforces a hard regression gate, failing builds if malicious recall drops below critical thresholds.
 
+### Advanced Active Learning (PRM and SFT)
+To eliminate reward hacking vulnerabilities inherent in naive bandits, Aegis implements a Process Reward Model (PRM) architecture. It captures step-level labels (`prm_score`) during execution, evaluating individual actions (e.g., `git worktree add`) within the context of full adversarial trajectories. These trajectory datasets power a LoRA/QLoRA fine-tuning pipeline (often using open-weight models like Llama 3 8B), enabling Aegis to dynamically train its own gated local SFT tier. This fine-tuned model becomes the lowest-cost, fastest tier in the RLM-Cascade, operating purely on high-quality human-confirmed episodic memory labels.
+
+### Formal Policy Layer (AWS Cedar)
+Aegis extends its dynamic behavioral graphs with declarative certainty using AWS Cedar. By modeling system calls, filesystem paths, and executable identities as Formal ABAC (Attribute-Based Access Control) entities, Aegis administrators can declare undeniable boundaries (e.g., `forbid(principal, action, resource) when { resource.path_pattern like "/etc/*" }`). Aegis then transparently compiles these validated Cedar policies into native eBPF map payloads (`denied_hashes`, `denied_paths`), strictly enforcing them on the zero-trust kernel data plane.
+
 ## 4. System Architecture
 
 ```mermaid
@@ -173,9 +179,10 @@ aegis/
 │   ├── graph/                  # Temporal DAG assembly and anomaly scorer
 │   ├── adjudicator/            # LLM interface mapping rules to inference endpoints
 │   └── policy/                 # Syncs SQLite state to eBPF hash maps
-├── evals/                      # Static Golden & Adversarial Datasets
+├── evals/                      # Golden Datasets & Trajectory Evals
 │   ├── golden/                 # True positives & baseline negatives
-│   └── adversarial/            # Slow-drip DoS sequences / near-miss mimicry
+│   ├── adversarial/            # Slow-drip DoS sequences / near-miss mimicry
+│   └── trajectory/             # Stateful environment and adversarial agent generator
 ├── demo/
 │   └── defanged_worktree_demo.sh # Mathematically identical but harmless CVE simulation
 └── .github/workflows/          
@@ -240,36 +247,56 @@ make tui
 ```
 
 ### 8.1. Configuring the AI Adjudicator (Plug-and-Play AI)
-Aegis relies on an RLM-Cascade (Routing Language Model) to drastically lower decision costs. By default, it routes low-risk anomalies to `gpt-3.5-turbo` and escalates high-risk anomalies to `gpt-4`.
+Aegis relies on an RLM-Cascade (Routing Language Model) to drastically lower decision costs. By default, it routes low-risk anomalies to a cheaper model (like `gpt-3.5-turbo` or a local SFT tier) and escalates high-risk anomalies to a flagship model (like `gpt-4o`).
 
-However, the Go `Adjudicator` interface is **completely model-agnostic**. You can easily plug in external providers, aggregators, or entirely local models without hardcoding anything.
+**How does the routing work?**
+The logic for this routing lives in `internal/proxy/cascade.go`. Aegis analyzes the `graph.FlaggedEvent`:
+1. If the event touches sensitive out-of-bounds files (e.g., `/etc/shadow`), executes high-risk binaries (e.g., `wget`), or has a very long context window, it is classified as **High Risk** and routed to the Flagship LLM.
+2. If it is standard baseline deviation, it is classified as **Low Risk** and routed to the Cheap LLM (or the SFT tier if enabled).
 
 **How to Configure Models Safely:**
-**NEVER hardcode your API keys.** The Go application reads from standard environment variables (e.g., `os.Getenv("AEGIS_LLM_KEY")`).
+**NEVER hardcode your API keys.** The Go application reads from standard environment variables, which can be defined in your shell or inside an `aegis.env` file in the root directory. `provider.LoadEnvFile()` automatically loads these into the application state at runtime.
 
 You can dynamically configure the lower-priority (cheap) and higher-priority (flagship) models via environment variables before running the application:
 
 ```bash
-# Example: Using OpenAI
-export AEGIS_LLM_URL="https://api.openai.com/v1/chat/completions"
-export AEGIS_CHEAP_MODEL="gpt-3.5-turbo"
-export AEGIS_FLAGSHIP_MODEL="gpt-4-turbo"
-export AEGIS_LLM_KEY="sk-..."
+# 1. Create your environment configuration file:
+cp aegis.env.example aegis.env
 
+# 2. Edit aegis.env with your secure keys and model preferences:
+AEGIS_LLM_URL="https://api.openai.com/v1/chat/completions"
+AEGIS_CHEAP_MODEL="gpt-3.5-turbo"
+AEGIS_FLAGSHIP_MODEL="gpt-4o"
+AEGIS_LLM_KEY="sk-..."
+
+# 3. Run the application (it will automatically consume aegis.env)
 make everything
 ```
 
 **Alternative Provider Examples:**
 - **OpenRouter (Aggregator):** 
-  `export AEGIS_LLM_URL="https://openrouter.ai/api/v1/chat/completions"`
-  `export AEGIS_CHEAP_MODEL="anthropic/claude-3-haiku"`
-  `export AEGIS_FLAGSHIP_MODEL="anthropic/claude-3.5-sonnet"`
-  `export AEGIS_LLM_KEY="sk-or-v1-..."`
-- **HuggingFace / Groq:** Set the respective v1-compatible endpoint and model tags.
+  Update your `aegis.env` to:
+  ```env
+  AEGIS_LLM_URL="https://openrouter.ai/api/v1/chat/completions"
+  AEGIS_CHEAP_MODEL="anthropic/claude-3-haiku"
+  AEGIS_FLAGSHIP_MODEL="anthropic/claude-3.5-sonnet"
+  AEGIS_LLM_KEY="sk-or-v1-..."
+  ```
+- **HuggingFace Ecosystem:** 
+  You can point the URL to HuggingFace serverless inference endpoints or Inference Endpoints with your HF token as the key.
+  ```env
+  AEGIS_LLM_URL="https://api-inference.huggingface.co/v1/chat/completions"
+  AEGIS_CHEAP_MODEL="meta-llama/Meta-Llama-3-8B-Instruct"
+  AEGIS_FLAGSHIP_MODEL="meta-llama/Meta-Llama-3-70B-Instruct"
+  AEGIS_LLM_KEY="hf_..."
+  ```
 - **Local Models (Ollama):** For absolute privacy, boot Ollama locally. 
-  `export AEGIS_LLM_URL="http://localhost:11434/v1/chat/completions"`
-  `export AEGIS_CHEAP_MODEL="llama3-8b"`
-  `export AEGIS_FLAGSHIP_MODEL="llama3-70b"`
+  ```env
+  AEGIS_LLM_URL="http://localhost:11434/v1/chat/completions"
+  AEGIS_CHEAP_MODEL="llama3-8b"
+  AEGIS_FLAGSHIP_MODEL="llama3-70b"
+  # AEGIS_LLM_KEY is ignored for local Ollama
+  ```
   *(No API key needed. This ensures no sensitive file paths ever leave your host hardware!)*
 
 ## 9. Results, Benchmarks, and Evaluation
