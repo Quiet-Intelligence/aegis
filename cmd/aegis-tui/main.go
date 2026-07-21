@@ -121,6 +121,7 @@ type model struct {
 	feed        []feedItem
 	stats       stats
 	paused      bool
+	scrollIndex int
 	auditOffset int64
 	providerStr string
 	scopeStr    string
@@ -185,6 +186,7 @@ func scopeString() string {
 }
 
 func (m *model) readNewAuditLines() {
+	prevLen := len(m.feed)
 	f, err := os.Open("audit.jsonl")
 	if err != nil {
 		return
@@ -222,6 +224,10 @@ func (m *model) readNewAuditLines() {
 	}
 	if len(m.feed) > 200 {
 		m.feed = m.feed[:200]
+	}
+	added := len(m.feed) - prevLen
+	if added > 0 && m.scrollIndex > 0 {
+		m.scrollIndex += added
 	}
 }
 
@@ -269,10 +275,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.paused = !m.paused
 		case "r":
 			m.refreshStats()
+		case "up", "k":
+			m.scrollIndex = clampInt(m.scrollIndex-1, 0, m.maxScrollIndex())
+		case "down", "j":
+			m.scrollIndex = clampInt(m.scrollIndex+1, 0, m.maxScrollIndex())
+		case "pgup":
+			m.scrollIndex = clampInt(m.scrollIndex-m.visibleFeedCount(), 0, m.maxScrollIndex())
+		case "pgdown":
+			m.scrollIndex = clampInt(m.scrollIndex+m.visibleFeedCount(), 0, m.maxScrollIndex())
+		case "home":
+			m.scrollIndex = 0
+		case "end":
+			m.scrollIndex = m.maxScrollIndex()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.scrollIndex = clampInt(m.scrollIndex, 0, m.maxScrollIndex())
 	case tickMsg:
 		m.ticks++
 		if m.ticks%10 == 0 {
@@ -311,6 +330,36 @@ func truncate(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
+func clampInt(v, min, max int) int {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+func (m model) visibleFeedCount() int {
+	availHeight := m.height - 20
+	if availHeight < 3 {
+		return 1
+	}
+	count := availHeight / 3
+	if count < 1 {
+		count = 1
+	}
+	return count
+}
+
+func (m model) maxScrollIndex() int {
+	visible := m.visibleFeedCount()
+	if len(m.feed) <= visible {
+		return 0
+	}
+	return len(m.feed) - visible
+}
+
 func (m model) View() string {
 	colorIdx := m.ticks % len(logoColors)
 	logoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(logoColors[colorIdx])).Bold(true)
@@ -347,15 +396,16 @@ func (m model) View() string {
 		feed.WriteString(dimStyle.Render("Waiting for telemetry... (run aegisd and interact in the container)"))
 	}
 	
-	availHeight := m.height - 20
-	if availHeight < 5 {
-		availHeight = 5
+	visibleCount := m.visibleFeedCount()
+	maxScroll := m.maxScrollIndex()
+	start := clampInt(m.scrollIndex, 0, maxScroll)
+	end := start + visibleCount
+	if end > len(m.feed) {
+		end = len(m.feed)
 	}
-	
-	for i, item := range m.feed {
-		if i >= availHeight {
-			break
-		}
+
+	for i := start; i < end; i++ {
+		item := m.feed[i]
 		e := item.entry
 		ts := e.Timestamp.Format("15:04:05")
 		detail := e.Rationale
@@ -363,17 +413,26 @@ func (m model) View() string {
 			detail = "by " + e.Actor + " | " + detail
 		}
 		
-		feed.WriteString(fmt.Sprintf("%s %-15s %-6s %s\n      %s\n",
+		feed.WriteString(fmt.Sprintf("%s %-15s %-6s %s\n      %s",
 			dimStyle.Render(ts),
 			decisionBadge(e.Decision, e.isAutoRecall()),
 			e.Event.Type,
 			truncate(e.resource(), 50),
 			dimStyle.Render(truncate(detail, 80))))
+		if i < end-1 {
+			feed.WriteString("\n\n")
+		}
+	}
+	if len(m.feed) > 0 {
+		feed.WriteString("\n")
 	}
 	
 	feedTitle := "Live Adjudication Feed (audit.jsonl)"
 	if m.paused {
 		feedTitle += askStyle.Render(" [PAUSED]")
+	}
+	if len(m.feed) > visibleCount {
+		feedTitle += dimStyle.Render(fmt.Sprintf(" [%d/%d]", start+1, len(m.feed)))
 	}
 	
 	feedPanel := panelStyle.Copy().Width(m.width * 2 / 3).Render(
@@ -395,7 +454,7 @@ func (m model) View() string {
 	
 	body := lipgloss.JoinHorizontal(lipgloss.Top, feedPanel, "  ", policyPanel)
 	
-	footer := footerStyle.Render("[q] quit   [p] pause/resume feed   [r] force refresh")
+	footer := footerStyle.Render("[q] quit   [p] pause/resume feed   [r] force refresh   [↑/↓] scroll   [PgUp/PgDn] page   [Home/End]")
 	
 	return lipgloss.JoinVertical(lipgloss.Left, header, "", metricsBar, "", body, footer)
 }
