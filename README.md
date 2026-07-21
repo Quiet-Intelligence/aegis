@@ -107,28 +107,29 @@ graph TD
     subgraph "Layer 2: Go Control Plane (aegisd)"
         Reader[Go epoll Readers]
         Graph[Temporal Graph Scorer]
-        Cascade[RLM-Cascade Proxy]
-        LLM_Cheap((GPT-3.5))
-        LLM_Flagship((GPT-4))
+        Cedar[AWS Cedar Policy Engine]
+        Adjudicator[Pluggable LLM Adjudicator]
         
         RingBuf --> Reader
         Reader -->|Bounded Channels| Graph
-        Graph -->|Flagged Event| Cascade
-        Cascade -->|Low Risk| LLM_Cheap
-        Cascade -->|High Risk| LLM_Flagship
+        Graph -->|Flagged Event| Cedar
+        Cedar -->|Policy Miss| Adjudicator
     end
 
-    subgraph "Memory & Learning (AMLL & RLE)"
+    subgraph "Memory & Learning (AMLL & PRM)"
         SQLite[(SQLite Episodic Store)]
         Embedder[Vector Embedder]
         Bandit[LinUCB Bandit]
+        PRM[Offline PRM Training]
         
-        Cascade <--> Embedder
+        Adjudicator <--> Embedder
         Embedder <--> SQLite
+        PRM -->|Evaluates Trajectories| Bandit
         Bandit -->|Tunes Thresholds| Graph
     end
     
-    Cascade -->|Deny Decision| PolicyMap
+    Cedar -->|Compile Policy| PolicyMap
+    Adjudicator -->|Deny Decision| Cedar
     
     classDef kernel fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#fff;
     classDef userspace fill:#2980b9,stroke:#2980b9,stroke-width:2px,color:#fff;
@@ -136,12 +137,12 @@ graph TD
     classDef llm fill:#8e44ad,stroke:#8e44ad,stroke-width:2px,color:#fff;
     
     class LSM,RingBuf,PolicyMap kernel;
-    class Reader,Graph userspace;
-    class SQLite,Embedder,Bandit memory;
-    class LLM_Cheap,LLM_Flagship,Cascade llm;
+    class Reader,Graph,Cedar userspace;
+    class SQLite,Embedder,Bandit,PRM memory;
+    class Adjudicator llm;
 ```
 
-**Architecture Flow:** The Agent process inside Layer 0 triggers syscalls intercepted by Layer 1. These flow via ring buffer into Layer 2, where they are mapped to temporal behavior graphs. If flagged against the repo's baseline, the event is vectorized and queried against the SQLite Memory layer. If no historical precedent exists, the RLM-Cascade proxies the request to the optimal LLM based on risk scores, writing any subsequent Denial back down into the Layer 1 eBPF maps to block future occurrences synchronously.
+**Architecture Flow:** The Agent process inside Layer 0 triggers syscalls intercepted by Layer 1. These flow via ring buffer into Layer 2, where they are mapped to temporal behavior graphs. The event is first validated against declarative AWS Cedar policies. If no static boundary matches, it is vectorized and queried against the SQLite Memory layer. If no historical precedent exists, the Pluggable Adjudicator queries the configured LLM provider (e.g. OpenAI, Groq, local SLMs). Any resulting Denial is converted into a native Cedar policy and synchronized down to Layer 1 eBPF maps to synchronously block future occurrences. Offline, the Process Reward Model (PRM) evaluates adversarial trajectories to dynamically tune the anomaly thresholds via the LinUCB bandit without succumbing to reward hacking.
 
 ## 5. Repository Structure
 
