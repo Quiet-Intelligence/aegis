@@ -1,0 +1,29 @@
+name: EV2-7 Held-out Contamination Check
+
+on:
+  pull_request:
+    paths:
+      - 'pkg/graph/**'
+      - 'evals/trajectory/heldout/**'
+
+jobs:
+  check-contamination:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Verify Strict Isolation
+        run: |
+          # Check if the PR modifies both the scorer and the held-out set simultaneously
+          SCORER_MODIFIED=$(git diff --name-only origin/main...HEAD | grep -c "^pkg/graph/" || true)
+          HELDOUT_MODIFIED=$(git diff --name-only origin/main...HEAD | grep -c "^evals/trajectory/heldout/" || true)
+          
+          if [ "$SCORER_MODIFIED" -gt 0 ] && [ "$HELDOUT_MODIFIED" -gt 0 ]; then
+            echo "::error::EV2-7 Contamination Violation: You cannot modify the temporal scorer (pkg/graph/) and the held-out validation set (evals/trajectory/heldout/) in the same PR. This prevents unintentional tuning of the scorer against the evaluation dataset."
+            exit 1
+          fi
+          
+          echo "Isolation check passed."

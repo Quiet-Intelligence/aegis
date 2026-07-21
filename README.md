@@ -206,9 +206,10 @@ Aegis relies on a rigorously defined continuous integration pipeline operating i
 
 **2. Stateful Trajectory Evaluation (EV2):** The `.github/workflows/trajectory-evals.yml` runs deeper, adaptive evaluations simulating genuine red-team interactions. By capturing step survival metrics and workflow success rates over N-runs, Aegis provides high-confidence assurance that security does not quietly degrade task completion capabilities.
 
-**3. Process Reward Model (PRM) Offline Training & Metric Generation:** The `make everything` CI suite automatically extracts step-level labels from the stateful trajectory executions to train the offline Process Reward Model (PRM). To support this automated training and markdown generation loop across diverse CI runners, `scripts/install_deps.sh` silently provisions the necessary Python data science dependencies (`numpy`, `scikit-learn`, `matplotlib`) via `apt`, `pacman`, or `dnf`.
+**3. Process Reward Model (PRM) Offline Training & Metric Generation:** The `make everything` CI suite automatically extracts step-level labels from the stateful trajectory executions to feed the offline Process Reward Model (PRM). *Note: The PRM pipeline is currently wired end-to-end and produces a model artifact, but it is not yet trained on enough data to be predictive (serving as a structural scaffold).* To support this automated training and markdown generation loop across diverse CI runners, `scripts/install_deps.sh` silently provisions the necessary Python data science dependencies (`numpy`, `scikit-learn`, `matplotlib`) via `apt`, `pacman`, or `dnf`.
 
 **4. Formal Policy Validation:** The `.github/workflows/cedar-ci.yml` leverages the CNCF-sandbox Cedar CLI to statically analyze ABAC security boundaries against `schema.json`. It guarantees no contradictory or vacuous policies can be merged into production.
+*Example CI Block:* If a PR attempts to submit `forbid(principal, action, resource) when { resource.path == "/workspace/*" };`, the `cedar-cli` static validator will instantly fail the build, as this contradicts the foundational zero-trust rule that agents *must* be allowed to write to `/workspace`, proving the check works before compilation.
 
 ## 8. Setup, Installation, and Running
 
@@ -335,7 +336,7 @@ The core security metric for Aegis v2. Rather than testing single isolated event
 ### Process Reward Model (PRM) & Reward Hacking Audit
 
 To prevent the LinUCB bandit from "reward hacking" (optimizing hyper-parameters strictly to pass the static EV1 tests without improving genuine security), Aegis extracts step-level labels from real trajectory executions to train an offline Process Reward Model (PRM). 
-*(Note: Current R² scores reflect the baseline demo environment constraints; the end-to-end extraction and training loop is verified in CI).*
+*(Note: The PRM pipeline is currently wired end-to-end and produces a model artifact, but it is not yet trained on enough data to be predictive, serving as a structural scaffold. See the [Reward Hacking Audit](docs/reward_hacking_audit.md) for pre-training evaluation).*
 
 | Metric | Value |
 |--------|-------|
@@ -394,7 +395,7 @@ The system successfully intercepts eBPF telemetry, constructs temporal graphs, c
 Aegis works on *classes* of emergent behavior, not specific CVE signatures. Because it scores temporal graph deviations (e.g., N cycles over T seconds on unexpected paths), it inherently catches polymorphic attacks. If an agent goes rogue and tries to compress `$HOME` and socket it to an IP, or loops over `.ssh` keys, the graph scorer flags it. It is entirely signature-less.
 
 **2. How competitive are the components?**
-- **Cybersecurity (Perimeter + eBPF):** State-of-the-art. Combining a read-only Docker rootfs with dropped capabilities (Layer 0) and an eBPF LSM ring buffer (Layer 1) creates an effectively bulletproof boundary. Even root-level shellcode inside the container cannot bypass the LSM hooks.
+- **Cybersecurity (Perimeter + eBPF):** State-of-the-art. Combining a read-only Docker rootfs with dropped capabilities (Layer 0) and an eBPF LSM ring buffer (Layer 1) creates an effectively bulletproof boundary. This significantly raises the bar for even root-level shellcode inside the container attempting to bypass the LSM hooks.
 - **Orchestration & Hardware Optimization:** Extremely robust. We achieved zero-allocation event struct processing via `sync.Pool`, bounded channels with fail-closed semantics for critical hooks, and sub-millisecond p95 telemetry latency. This is competitive with production cloud agents like Datadog or Cilium.
 - **Memory (AMLL):** Brute-force SQLite cosine similarity over vectors limits scale (starts dropping off at 5k vectors), but the zero-shot auto-recall capability is fundamentally necessary to prevent LLM API bankruptcy in production multi-agent setups.
 - **AI Adjudication & RLE Bandit:** The cascade proxy drastically cuts costs by routing low-risk checks to cheaper models and escalating to Flagship models. The LinUCB bandit successfully optimizes the threshold parameters, but its raw metrics are naturally susceptible to "reward-hacking." By introducing the Process Reward Model (PRM) and subjecting all adjustments to the adaptive Trajectory Harness (EV2), Aegis mathematically bounds the RL loop and ensures optimization correlates directly to genuine operational security, not just leaderboard metrics.
@@ -439,7 +440,7 @@ If you utilize Aegis architecture or benchmark methodologies in academic researc
   author = {Tripathi, Pundarikaksh N. and Singh, Arnav and Sharma, Sameer},
   title = {Aegis: Behavioral Governance and Adaptive Policy Control Plane},
   year = {2026},
-  url = {https://github.com/aegis-security/aegis},
+  url = {https://github.com/Quiet-Intelligence/aegis},
   note = {OpenAI Buildweek PoC}
 }
 ```

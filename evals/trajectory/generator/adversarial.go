@@ -31,6 +31,13 @@ func NewGenerator(env *environment.Environment) *Generator {
 	}
 }
 
+// Reset resets the generator for a new run while maintaining its learned strategy.
+func (g *Generator) Reset(env *environment.Environment) {
+	g.env = env
+	g.stepsTaken = 0
+	g.history = nil
+}
+
 // Generate runs the adversarial trajectory until it is denied or it completes its goal (survives).
 // It returns the number of steps survived, the full action history, and a boolean indicating if it was caught.
 func (g *Generator) Generate(maxSteps int) (int, []environment.Action, bool) {

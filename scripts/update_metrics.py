@@ -132,7 +132,7 @@ The core security metric for Aegis v2. Rather than testing single isolated event
 ### Process Reward Model (PRM) & Reward Hacking Audit
 
 To prevent the LinUCB bandit from "reward hacking" (optimizing hyper-parameters strictly to pass the static EV1 tests without improving genuine security), Aegis extracts step-level labels from real trajectory executions to train an offline Process Reward Model (PRM). 
-*(Note: Current R² scores reflect the baseline demo environment constraints; the end-to-end extraction and training loop is verified in CI).*
+*(Note: The PRM pipeline is currently wired end-to-end and produces a model artifact, but it is not yet trained on enough data to be predictive, serving as a structural scaffold. See the [Reward Hacking Audit](docs/reward_hacking_audit.md) for pre-training evaluation).*
 
 | Metric | Value |
 |--------|-------|
