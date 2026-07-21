@@ -1,0 +1,28 @@
+{
+  "Aegis": {
+    "entityTypes": {
+      "Repo": {
+        "memberOfTypes": []
+      },
+      "Event": {
+        "memberOfTypes": [],
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "syscall_class": { "type": "String" },
+            "path_pattern": { "type": "String" },
+            "binary_hash": { "type": "String" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "Access": {
+        "appliesTo": {
+          "principalTypes": ["Repo"],
+          "resourceTypes": ["Event"]
+        }
+      }
+    }
+  }
+}

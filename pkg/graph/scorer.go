@@ -163,7 +163,7 @@ func (s *Scorer) processEvent(ev *telemetry.Event) {
 			}
 		}
 		// Catch .git/config modifications (O_WRONLY=1, O_RDWR=2)
-		if strings.Contains(resource, ".git/config") {
+		if strings.Contains(resource, ".git/config") || strings.Contains(resource, "/.git/worktrees/") {
 			if ev.Type == "file_open" && (ev.FileOpen.Flags&3 != 0) {
 				isFlagged = true
 				ruleName = "Modification of repository configuration"

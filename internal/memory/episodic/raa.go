@@ -22,6 +22,7 @@ func (r *RetrievalAugmentedAdjudicator) Adjudicate(ctx context.Context, repoID i
 		if c, err := r.Store.QueryExactExec(ctx, repoID, event); err == nil && c != nil && c.Decision != adjudicator.DecisionAskUser {
 			rationale := fmt.Sprintf("Auto-recalled exact command decision from PastCase ID: %d. Original: %s", c.ID, c.Rationale)
 			_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, c.Decision, rationale, "auto_recall")
+			_ = r.Store.RecordTrace(ctx, event.SessionID, repoID, event, []PastCase{*c}, c.Decision, rationale)
 			return c.Decision, rationale, nil
 		}
 	} else {
@@ -34,6 +35,7 @@ func (r *RetrievalAugmentedAdjudicator) Adjudicate(ctx context.Context, repoID i
 					if c.Decision != adjudicator.DecisionAskUser {
 						rationale := fmt.Sprintf("Auto-recalled decision based on PastCase ID: %d. Original: %s", c.ID, c.Rationale)
 						_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, c.Decision, rationale, "auto_recall")
+						_ = r.Store.RecordTrace(ctx, event.SessionID, repoID, event, cases, c.Decision, rationale)
 						return c.Decision, rationale, nil
 					}
 				}
@@ -44,6 +46,7 @@ func (r *RetrievalAugmentedAdjudicator) Adjudicate(ctx context.Context, repoID i
 	dec, rat, err := r.LLM.Adjudicate(ctx, repoID, event)
 	if err == nil {
 		_ = r.Store.RecordCase(ctx, repoID, event.SessionID, event, dec, rat, "llm")
+		_ = r.Store.RecordTrace(ctx, event.SessionID, repoID, event, nil, dec, rat)
 	}
 	return dec, rat, err
 }

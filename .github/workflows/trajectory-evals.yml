@@ -1,0 +1,39 @@
+name: Trajectory-Based Evals (Nightly/Pre-Release)
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Nightly at 2 AM
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'demo-rehearsal-*'
+  workflow_dispatch:
+
+jobs:
+  trajectory-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Run Stateful Trajectory Evals
+        run: |
+          go run ./cmd/evalrunner -trajectory > trajectory_eval_report.md
+          
+      - name: Format Report
+        run: |
+          echo "# Aegis Trajectory Evals Report" > final_report.md
+          echo "Date: $(date)" >> final_report.md
+          echo "\`\`\`text" >> final_report.md
+          cat trajectory_eval_report.md >> final_report.md
+          echo "\`\`\`" >> final_report.md
+
+      - name: Upload Dashboard Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trajectory-eval-report
+          path: final_report.md

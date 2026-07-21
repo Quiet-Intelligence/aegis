@@ -109,6 +109,18 @@ func (s *Store) RecordCase(ctx context.Context, repoID int64, sessionID string, 
 	return tx.Commit()
 }
 
+func (s *Store) RecordTrace(ctx context.Context, sessionID string, repoID int64, event graph.FlaggedEvent, retrievedCases []PastCase, decision adjudicator.Decision, rationale string) error {
+	ctxJSON, _ := json.Marshal(event.Context)
+	casesJSON, _ := json.Marshal(retrievedCases)
+
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR REPLACE INTO decision_traces 
+		(session_id, repo_id, context_events_json, retrieved_cases_json, decision, rationale)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		sessionID, repoID, string(ctxJSON), string(casesJSON), string(decision), rationale)
+	return err
+}
+
 func (s *Store) Query(ctx context.Context, repoID int64, queryVector []float32, topK int) ([]PastCase, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT fe.id, fe.decision, fe.rationale, fe.decided_by, e.vector 

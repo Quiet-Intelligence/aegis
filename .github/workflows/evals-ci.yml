@@ -26,7 +26,7 @@ jobs:
           go-version: '1.22'
 
       - name: Run Eval Runner
-        run: go run cmd/evalrunner/main.go > eval_output.txt
+        run: go run ./cmd/evalrunner > eval_output.txt
 
       - name: Check Malicious Recall Threshold
         run: |

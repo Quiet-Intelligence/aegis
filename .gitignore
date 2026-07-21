@@ -36,3 +36,15 @@ vendor/
 aegis.env
 .aegis-run/
 ebpf/vmlinux.h
+ebpf/vmlinux.h.tmp
+
+# Python / Models
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+models/
+*.pkl
+
+# External Documents
+references/
