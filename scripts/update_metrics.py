@@ -66,13 +66,14 @@ def main():
     # Plot 4: Trajectory Eval Metrics (EV2) - More complex stacked/side-by-side
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
     
-    # Subplot A: Adversarial Survival
-    deterrence = 1.0 - (data['trajectory_evals']['mean_steps_survived'] / 50.0)
-    ax1.bar(['Deterrence Rate'], [deterrence], color='#e74c3c')
-    ax1.set_title('Red-Team Neutralization', fontsize=12)
-    ax1.set_ylim(0, 1.1)
-    ax1.text(0, deterrence + 0.02, f'{deterrence:.3f}', ha='center', fontsize=11)
-    ax1.grid(True, axis='y', linestyle='--', alpha=0.7)
+    # Subplot A: Adversarial Survival Adaptation (Line Chart)
+    runs = list(range(1, 21))
+    survival_dist = data['trajectory_evals']['survival_distribution']
+    ax1.plot(runs, survival_dist, marker='x', color='#8e44ad', linestyle='-', linewidth=2)
+    ax1.set_title('Generator Adaptation (EV2 Survival)', fontsize=12)
+    ax1.set_xlabel('Run Number')
+    ax1.set_ylabel('Steps Survived')
+    ax1.grid(True, linestyle='--', alpha=0.7)
 
     # Subplot B: Legitimate Workflow Outcomes
     success = data['trajectory_evals']['task_success_rate']
@@ -80,11 +81,29 @@ def main():
     
     wedges, texts, autotexts = ax2.pie([success, refusal], labels=['Task Success', 'Over-Refusal'], 
                                        autopct='%1.1f%%', colors=['#2ecc71', '#95a5a6'], startangle=90)
-    ax2.set_title('Legitimate Workflow UX Cost', fontsize=12)
+    ax2.set_title(f'Legitimate Workflow UX (N={data["trajectory_evals"]["legitimate_workflows"]})', fontsize=12)
     
     plt.suptitle('EV2: Stateful Trajectory Metrics', fontsize=14, y=1.05)
     plt.tight_layout()
     plt.savefig('docs/images/trajectory_metrics.png', dpi=300)
+    plt.close()
+
+    # Plot 5: Provider Benchmarks (Latency vs Cost)
+    providers = [p['provider'] for p in data['provider_benchmarks']]
+    p_latency = [p['latency_ms'] for p in data['provider_benchmarks']]
+    p_cost = [p['cost_per_1k'] * 10000 for p in data['provider_benchmarks']] # scaled for visibility
+    
+    plt.figure(figsize=(8, 5))
+    scatter = plt.scatter(p_latency, p_cost, s=150, c=['#f39c12', '#2980b9', '#27ae60'], alpha=0.8)
+    for i, provider in enumerate(providers):
+        plt.annotate(provider, (p_latency[i], p_cost[i]), xytext=(10, 0), textcoords='offset points', fontsize=11)
+    
+    plt.title('Pluggable Adjudicator Provider Landscape', fontsize=14)
+    plt.xlabel('API Latency (ms)', fontsize=12)
+    plt.ylabel('Cost Per 10k Decisions ($)', fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig('docs/images/provider_landscape.png', dpi=300)
     plt.close()
 
     # Construct Markdown Tables
@@ -100,6 +119,15 @@ Aegis enforces a strict fail-closed boundary for `file_open` and `exec` syscalls
 | p50 Pipeline Latency | {data['throughput']['p50_ms']:.3f} ms |
 | p95 Pipeline Latency | {data['throughput']['p95_ms']:.3f} ms |
 | p99 Pipeline Latency | {data['throughput']['p99_ms']:.3f} ms |
+| Cedar Compilation Latency | {data['cedar_benchmarks']['compilation_latency_us']:.1f} µs |
+
+![Pipeline Latency Profile](docs/images/latency_profile.png)
+
+### Pluggable Adjudicator Landscape
+
+By swapping providers via `aegis.env`, deployments can balance speed, cost, and privacy. The Groq integration currently provides the most performant cloud profile, while local SLMs provide absolute data sovereignty.
+
+![Provider Landscape](docs/images/provider_landscape.png)
 
 ### Static Golden Dataset Accuracies (EV1)
 

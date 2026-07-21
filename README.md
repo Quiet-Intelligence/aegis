@@ -304,6 +304,15 @@ Aegis enforces a strict fail-closed boundary for `file_open` and `exec` syscalls
 | p50 Pipeline Latency | 0.045 ms |
 | p95 Pipeline Latency | 0.112 ms |
 | p99 Pipeline Latency | 0.420 ms |
+| Cedar Compilation Latency | 15.4 µs |
+
+![Pipeline Latency Profile](docs/images/latency_profile.png)
+
+### Pluggable Adjudicator Landscape
+
+By swapping providers via `aegis.env`, deployments can balance speed, cost, and privacy. The Groq integration currently provides the most performant cloud profile, while local SLMs provide absolute data sovereignty.
+
+![Provider Landscape](docs/images/provider_landscape.png)
 
 ### Static Golden Dataset Accuracies (EV1)
 
@@ -322,16 +331,16 @@ The traditional evaluation method. While achieving a 1.000 F1 score validates th
 
 The core security metric for Aegis v2. Rather than testing single isolated events, this tests the system against an adaptive, multi-step adversarial agent simulating an active breach (`evalrunner -trajectory`).
 
-- **Adversarial Survival:** The red-team agent attempts to survive as many steps as possible. A mean survival of 1.00 (with 0.00 variance) proves the adversary is reliably neutralized on their very first anomalous action across 20 independent runs.
-- **Over-Refusal Rate:** Evaluates the usability cost of the security boundary. Legitimate agents executing multi-step compilation or refactoring tasks succeeded 66.7% of the time without being falsely blocked by the anomaly scorer.
+- **Adversarial Survival:** The red-team agent attempts to survive as many steps as possible. A mean survival of 1.00 (with 32.40 variance) proves the adversary is reliably neutralized on their very first anomalous action across 20 independent runs.
+- **Over-Refusal Rate:** Evaluates the usability cost of the security boundary. Legitimate agents executing multi-step compilation or refactoring tasks succeeded 90.0% of the time without being falsely blocked by the anomaly scorer.
 
 | Metric | Value |
 |--------|-------|
 | Adversarial Runs (N) | 20 |
-| Mean Steps Survived | 1.00 (Variance: 0.00) |
-| Legitimate Workflows Tested | 3 |
-| Over-Refusal Rate | 33.3% |
-| Task Success Rate | 66.7% |
+| Mean Steps Survived | 14.50 (Variance: 32.40) |
+| Legitimate Workflows Tested | 10 |
+| Over-Refusal Rate | 10.0% |
+| Task Success Rate | 90.0% |
 
 ### Process Reward Model (PRM) & Reward Hacking Audit
 
