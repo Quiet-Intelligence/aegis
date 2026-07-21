@@ -205,7 +205,9 @@ Aegis relies on a rigorously defined continuous integration pipeline operating i
 
 **2. Stateful Trajectory Evaluation (EV2):** The `.github/workflows/trajectory-evals.yml` runs deeper, adaptive evaluations simulating genuine red-team interactions. By capturing step survival metrics and workflow success rates over N-runs, Aegis provides high-confidence assurance that security does not quietly degrade task completion capabilities.
 
-**3. Formal Policy Validation:** The `.github/workflows/cedar-ci.yml` leverages the CNCF-sandbox Cedar CLI to statically analyze ABAC security boundaries against `schema.json`. It guarantees no contradictory or vacuous policies can be merged into production.
+**3. Process Reward Model (PRM) Offline Training & Metric Generation:** The `make everything` CI suite automatically extracts step-level labels from the stateful trajectory executions to train the offline Process Reward Model (PRM). To support this automated training and markdown generation loop across diverse CI runners, `scripts/install_deps.sh` silently provisions the necessary Python data science dependencies (`numpy`, `scikit-learn`, `matplotlib`) via `apt`, `pacman`, or `dnf`.
+
+**4. Formal Policy Validation:** The `.github/workflows/cedar-ci.yml` leverages the CNCF-sandbox Cedar CLI to statically analyze ABAC security boundaries against `schema.json`. It guarantees no contradictory or vacuous policies can be merged into production.
 
 ## 8. Setup, Installation, and Running
 
@@ -221,7 +223,7 @@ To immediately launch the live system and interactive TUI without manual configu
 - **Windows / PowerShell Users:** Aegis is an eBPF daemon and fundamentally requires Linux Kernel hooks. You **cannot** run this natively on Windows. You must execute this inside a **WSL2 (Windows Subsystem for Linux)** environment with BTF enabled.
 - Linux Kernel ≥ 5.8 with `CONFIG_BPF_LSM=y`.
 - *Why Compilation is Required:* eBPF kernel objects (`.o` files) must be dynamically compiled against the exact Linux kernel headers present on your machine. This ensures that the memory offsets match your specific OS kernel version perfectly.
-- **WSL2 Fallbacks:** Windows Subsystem for Linux relies on a custom Microsoft kernel (`6.6.x-microsoft`) which often lacks standard `linux-headers` in upstream `apt` repositories. Aegis automatically detects this via the `install_deps.sh` script, gracefully bypasses the header requirement, and utilizes a canonical `vmlinux.h` fallback from AquaSecurity's upstream repositories to guarantee successful compilation on WSL.
+- **WSL2 Fallbacks & Offline Compilation:** Windows Subsystem for Linux relies on a custom Microsoft kernel (`6.6.x-microsoft`) which often lacks standard `linux-headers` in upstream `apt` repositories, causing `bpftool` BTF dumps to fail. Aegis automatically detects this and gracefully bypasses the network and header requirement. It leverages a heavily-minimized, tracepoint-aligned `vmlinux_fallback.h` bundled directly in the `ebpf/` directory to guarantee 100% offline compilation on WSL or any other non-BTF kernel.
 
 **1. The "Everything" Command (Recommended for End-Users):**
 Aegis ships with a unified setup and build pipeline via a single command. From a fresh clone, this will install all required host dependencies, compile the eBPF kernel objects, build the Go binaries, and launch our beautiful Terminal UI (TUI):

@@ -110,6 +110,10 @@ func RunTrajectoryEvals(db *sql.DB, repoID int64, baseLLM adjudicator.Adjudicato
 	fmt.Printf("Task Success Rate : %.2f%%\n", taskSuccessRate*100)
 
 	// Scaffolding Disclosure & Cost (EV2-8, EV2-9, EV2-10)
+	// Aegis requires strict transparency regarding the exact underlying LLM used for evaluations.
+	// Since the evals harness leverages the dynamic `aegis.env` (similar to the runtime daemon),
+	// we explicitly extract and disclose the live provider and model string here, rather than
+	// hardcoding a static CI default, which would obscure whether a local SLM or API was utilized.
 	fmt.Println("\n--- Scaffolding & Cost Disclosure ---")
 	provider := os.Getenv("AEGIS_PROVIDER")
 	if provider == "" {

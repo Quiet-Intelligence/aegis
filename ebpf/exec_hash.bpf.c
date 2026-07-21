@@ -1,3 +1,10 @@
+// Note regarding compilation on WSL / kernels lacking BTF:
+// When building on an environment missing standard `linux-headers` (e.g. WSL),
+// the Makefile falls back to using `vmlinux_fallback.h`. Raw tracepoints 
+// (like `sys_enter_execve` below) rely on highly specific `trace_event_raw_...` structs
+// which are dynamically mapped via `__attribute__((preserve_access_index))`.
+// This guarantees that even when using an offline fallback header, the libbpf CO-RE
+// relocations still function perfectly without breaking memory alignment.
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
