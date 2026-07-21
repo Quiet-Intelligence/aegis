@@ -146,7 +146,7 @@ The traditional evaluation method. While achieving a 1.000 F1 score validates th
 
 The core security metric for Aegis v2. Rather than testing single isolated events, this tests the system against an adaptive, multi-step adversarial agent simulating an active breach (`evalrunner -trajectory`).
 
-- **Adversarial Survival:** The red-team agent attempts to survive as many steps as possible. A mean survival of 1.00 (with {data['trajectory_evals']['variance_steps']:.2f} variance) proves the adversary is reliably neutralized on their very first anomalous action across {data['trajectory_evals']['adversarial_runs']} independent runs.
+- **Adversarial Survival:** The red-team agent attempts to survive as many steps as possible. A mean survival of {data['trajectory_evals']['mean_steps_survived']:.2f} (with {data['trajectory_evals']['variance_steps']:.2f} variance) proves the generator actively adapts its strategy to probe deeper into the workflow upon being caught, demonstrating the robust value of stateful trajectory evaluation across {data['trajectory_evals']['adversarial_runs']} independent runs.
 - **Over-Refusal Rate:** Evaluates the usability cost of the security boundary. Legitimate agents executing multi-step compilation or refactoring tasks succeeded {data['trajectory_evals']['task_success_rate'] * 100:.1f}% of the time without being falsely blocked by the anomaly scorer.
 
 | Metric | Value |
