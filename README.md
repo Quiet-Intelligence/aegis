@@ -448,7 +448,7 @@ This repository is governed under the PolyForm Noncommercial License. Commercial
 If you utilize Aegis architecture or benchmark methodologies in academic research, please cite:
 
 ```bibtex
-@software{Tripathi_Aegis_2026,
+@software{Aegis_2026,
   author = {Tripathi, Pundarikaksh N. and Singh, Arnav and Sharma, Sameer},
   title = {Aegis: Behavioral Governance and Adaptive Policy Control Plane},
   year = {2026},
