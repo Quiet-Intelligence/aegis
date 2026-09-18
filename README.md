@@ -244,7 +244,11 @@ During red-team evaluations, we tested Aegis against **BunnyHijack**—a novel s
 
 **Watch the demonstration:**
 
-<video src="assets/demo.mp4" controls="controls" width="100%"></video>
+<video src="./assets/demo.mp4" controls="controls" width="100%">
+  Your browser does not support the video tag. 
+</video>
+
+*[If the video above does not render in your viewer, click here to watch the demonstration (assets/demo.mp4)](./assets/demo.mp4)*
 
 ## 10. Results, Benchmarks, and Evaluation
 
