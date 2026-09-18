@@ -244,7 +244,7 @@ During red-team evaluations, we tested Aegis against **BunnyHijack**—a novel s
 
 **Watch the demonstration:**
 
-<video src="assets/Aegis_%20Zero-Trust%20eBPF%20Security%20for%20Autonomous%20AI%20Agents.mp4" controls="controls" width="100%"></video>
+<video src="assets/demo.mp4" controls="controls" width="100%"></video>
 
 ## 10. Results, Benchmarks, and Evaluation
 
