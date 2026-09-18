@@ -1,0 +1,89 @@
+direction: right
+
+classes: {
+  layer: {
+    style: {
+      fill: transparent
+      stroke-dash: 5
+      stroke-width: 2
+      stroke: "#5c6bc0"
+      border-radius: 10
+    }
+  }
+  component: {
+    style: {
+      border-radius: 5
+      stroke-width: 2
+      fill: "#e8eaf6"
+      stroke: "#3f51b5"
+      shadow: true
+    }
+  }
+  database: {
+    shape: cylinder
+    style: {
+      fill: "#fff3e0"
+      stroke: "#ff9800"
+      stroke-width: 2
+      shadow: true
+    }
+  }
+  cloud: {
+    shape: cloud
+    style: {
+      fill: "#e3f2fd"
+      stroke: "#2196f3"
+      stroke-width: 2
+    }
+  }
+}
+
+Layer 0 OS Sandbox: {
+  class: layer
+  Container: Container (Read-Only Rootfs) {
+    class: component
+  }
+}
+
+Layer 1 eBPF Kernel Data Plane: {
+  class: layer
+  bpf_lsm Hooks: { class: component }
+  Ring Buffers: { class: database }
+  BPF Hash Maps: { class: database }
+}
+
+Layer 2 Go Control Plane (aegisd): {
+  class: layer
+  Go epoll Readers: { class: component }
+  Temporal Graph Scorer: { class: component }
+  AWS Cedar Policy Engine: { class: component }
+  SQLite Vector DB: { class: database }
+  RLM Cascade Proxy: { class: component }
+}
+
+Layer 3 Pluggable Adjudication: {
+  class: layer
+  LLM Provider: { class: cloud }
+}
+
+# Connections
+Layer 0 OS Sandbox.Container -> Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks: Syscalls
+Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks -> Layer 1 eBPF Kernel Data Plane.Ring Buffers: Stream Events
+Layer 1 eBPF Kernel Data Plane.BPF Hash Maps -> Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks: Block Signal {
+  style.stroke: red
+  style.animated: true
+}
+
+Layer 1 eBPF Kernel Data Plane.Ring Buffers -> Layer 2 Go Control Plane (aegisd).Go epoll Readers
+Layer 2 Go Control Plane (aegisd).Go epoll Readers -> Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer
+Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer -> Layer 2 Go Control Plane (aegisd).AWS Cedar Policy Engine
+Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer -> Layer 2 Go Control Plane (aegisd).SQLite Vector DB
+Layer 2 Go Control Plane (aegisd).SQLite Vector DB -> Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy
+Layer 2 Go Control Plane (aegisd).AWS Cedar Policy Engine -> Layer 1 eBPF Kernel Data Plane.BPF Hash Maps: Compile Policy {
+  style.stroke: green
+}
+
+Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy -> Layer 3 Pluggable Adjudication.LLM Provider: Ask
+Layer 3 Pluggable Adjudication.LLM Provider -> Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy: Allow/Deny {
+  style.stroke-dash: 5
+}

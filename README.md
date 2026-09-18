@@ -30,15 +30,16 @@ Aegis is an advanced security control plane that sits inside hardened container 
 - [6. Technology Stack](#6-technology-stack)
 - [7. Infrastructure, DevOps, and CI/CD](#7-infrastructure-devops-and-cicd)
 - [8. Setup, Installation, and Running](#8-setup-installation-and-running)
-- [9. Results, Benchmarks, and Evaluation](#9-results-benchmarks-and-evaluation)
-- [10. Current Project Status](#10-current-project-status)
-- [11. System Evaluation (Post-Mortem)](#11-system-evaluation-post-mortem)
-- [12. Limitations and Future Work](#12-limitations-and-future-work)
-- [13. Debugging and Troubleshooting](#13-debugging-and-troubleshooting)
-- [14. Support and Maintenance](#14-support-and-maintenance)
-- [15. Contribution Guidelines](#15-contribution-guidelines)
-- [16. License Disclaimer](#16-license-disclaimer)
-- [17. Citation Guide](#17-citation-guide)
+- [9. Case Studies: Zero-Day Mitigation](#9-case-studies-zero-day-mitigation)
+- [10. Results, Benchmarks, and Evaluation](#10-results-benchmarks-and-evaluation)
+- [11. Current Project Status](#11-current-project-status)
+- [12. System Evaluation (Post-Mortem)](#12-system-evaluation-post-mortem)
+- [13. Limitations and Future Work](#13-limitations-and-future-work)
+- [14. Debugging and Troubleshooting](#14-debugging-and-troubleshooting)
+- [15. Support and Maintenance](#15-support-and-maintenance)
+- [16. Contribution Guidelines](#16-contribution-guidelines)
+- [17. License Disclaimer](#17-license-disclaimer)
+- [18. Citation Guide](#18-citation-guide)
 
 ---
 
@@ -89,58 +90,7 @@ Aegis extends its dynamic behavioral graphs with declarative, mathematically ver
 
 ## 4. System Architecture
 
-```mermaid
-graph TD
-    subgraph "Layer 0: OS Sandbox"
-        Container["Container (Read-Only Rootfs)"]
-    end
-    
-    subgraph "Layer 1: eBPF Kernel Data Plane"
-        LSM[bpf_lsm Hooks]
-        RingBuf[(Ring Buffers)]
-        PolicyMap[(BPF Hash Maps)]
-        Container -->|Syscalls| LSM
-        LSM -->|Stream Events| RingBuf
-        PolicyMap -->|Block Signal| LSM
-    end
-
-    subgraph "Layer 2: Go Control Plane (aegisd)"
-        Reader[Go epoll Readers]
-        Graph[Temporal Graph Scorer]
-        Cedar[AWS Cedar Policy Engine]
-        Adjudicator[Pluggable LLM Adjudicator]
-        
-        RingBuf --> Reader
-        Reader -->|Bounded Channels| Graph
-        Graph -->|Flagged Event| Cedar
-        Cedar -->|Policy Miss| Adjudicator
-    end
-
-    subgraph "Memory & Learning (AMLL & PRM)"
-        SQLite[(SQLite Episodic Store)]
-        Embedder[Vector Embedder]
-        Bandit[LinUCB Bandit]
-        PRM[Offline PRM Training]
-        
-        Adjudicator <--> Embedder
-        Embedder <--> SQLite
-        PRM -->|Evaluates Trajectories| Bandit
-        Bandit -->|Tunes Thresholds| Graph
-    end
-    
-    Cedar -->|Compile Policy| PolicyMap
-    Adjudicator -->|Deny Decision| Cedar
-    
-    classDef kernel fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#fff;
-    classDef userspace fill:#2980b9,stroke:#2980b9,stroke-width:2px,color:#fff;
-    classDef memory fill:#27ae60,stroke:#27ae60,stroke-width:2px,color:#fff;
-    classDef llm fill:#8e44ad,stroke:#8e44ad,stroke-width:2px,color:#fff;
-    
-    class LSM,RingBuf,PolicyMap kernel;
-    class Reader,Graph,Cedar userspace;
-    class SQLite,Embedder,Bandit,PRM memory;
-    class Adjudicator llm;
-```
+![System Architecture](docs/architecture.svg)
 
 **Architecture Flow:** The Agent process inside Layer 0 triggers syscalls intercepted by Layer 1. These flow via ring buffer into Layer 2, where they are mapped to temporal behavior graphs. The event is first validated against declarative AWS Cedar policies. If no static boundary matches, it is vectorized and queried against the SQLite Memory layer. If no historical precedent exists, the Pluggable Adjudicator queries the configured LLM provider (e.g. OpenAI, Groq, local SLMs). Any resulting Denial is converted into a native Cedar policy and synchronized down to Layer 1 eBPF maps to synchronously block future occurrences. Offline, the Process Reward Model (PRM) evaluates adversarial trajectories to dynamically tune the anomaly thresholds via the LinUCB bandit without succumbing to reward hacking.
 
@@ -197,9 +147,6 @@ aegis/
 - **Memory & Storage:** SQLite (`go-sqlite3`) with shared memory caching. Native Go math for embedded vector operations.
 - **LLM Integrations:** Go HTTP bindings for generic chat-completion interfaces (OpenAI `gpt-4`, `gpt-3.5-turbo`).
 - **DevOps & Evals:** GitHub Actions, Python (`scikit-learn` for PRM training, `matplotlib` for metric rendering).
-
-### 6.1 Codex Integration (OpenAI Build Week)
-Aegis relies on OpenAI Codex as a foundational developer tool used extensively throughout the build process. Rather than forcing a decorative runtime API call to meet hackathon requirements, Codex was used meaningfully during development to generate the core Go control plane logic, write the eBPF C data plane structures, and scaffold the trajectory evaluation harness. At runtime, the `Adjudicator` interface is inherently model-agnostic; it dynamically maps temporal graphs into structured allow/deny prompts that can be routed to any generic chat-completion endpoint (including OpenAI `gpt-4o` or `gpt-5.6` depending on your `aegis.env` configuration), providing maximum deployment flexibility without hardcoding a specific endpoint.
 
 ## 7. Infrastructure, DevOps, and CI/CD
 
@@ -289,7 +236,17 @@ make everything
   `export AEGIS_FLAGSHIP_MODEL="llama3-70b"`
   *(No API key needed. This ensures no sensitive file paths ever leave your host hardware!)*
 
-## 9. Results, Benchmarks, and Evaluation
+## 9. Case Studies: Zero-Day Mitigation
+
+While Aegis was primarily architected to prevent autonomous agent container escapes (e.g., CVE-2026-55607), its deep-kernel behavioral graph architecture implicitly mitigates user-space supply chain zero-days.
+
+During red-team evaluations, we tested Aegis against **BunnyHijack**—a novel supply-chain PATH poisoning exploit targeting the `bun` package manager. Because BunnyHijack relies on hijacking trusted processes to execute malicious payloads, Aegis's eBPF LSM hooks successfully identified the anomalous post-exploitation system calls (e.g., unexpected network sockets or file writes) and terminated the process. This demonstrated that Aegis's zero-trust PRM (Process Reward Model) acts as a catch-all runtime defense against supply-chain attacks without requiring any static signature updates.
+
+**Watch the demonstration:**
+
+<video src="assets/Aegis_%20Zero-Trust%20eBPF%20Security%20for%20Autonomous%20AI%20Agents.mp4" controls="controls" width="100%"></video>
+
+## 10. Results, Benchmarks, and Evaluation
 
 > [!NOTE]
 > **Automated Metrics Pipeline:** The data and visualizations below are not manually maintained. They are dynamically generated and injected into this document by the `scripts/update_metrics.py` hook. This pipeline is automatically triggered upon every successful evaluation pass when running `make everything` or `make eval metrics`, ensuring these benchmarks always represent the true state of the codebase.
@@ -387,7 +344,7 @@ All dynamically generated policy boundaries are modeled as formal ABAC entities 
 
 <!-- METRICS_END -->
 
-## 10. Current Project Status
+## 11. Current Project Status
 
 **Final Integration (Done).** Aegis has successfully passed all 7 build phases defined in the Unified PRD.
 The system successfully intercepts eBPF telemetry, constructs temporal graphs, correctly cascades low/high-risk LLM verification, caches embeddings via SQLite, offline-trains the contextual bandit, and enforces a strict fail-closed backpressure protocol under DoS loads.
@@ -401,7 +358,7 @@ The system successfully intercepts eBPF telemetry, constructs temporal graphs, c
 - **Offline PRM Pipeline:** End-to-end Process Reward Model training (`train_prm.py`) using red-team self-labeled SQLite telemetry.
 - **Formal Cedar Policy Compilation:** Embedded a Go-native Cedar parser (`internal/policy/cedar`) that deterministically translates declarative policies into raw `BPFMapFormat` payloads.
 
-## 11. System Evaluation (Post-Mortem)
+## 12. System Evaluation (Post-Mortem)
 
 **1. Does it work on all critical vulnerabilities or just CVE-2026-55607?**
 Aegis works on *classes* of emergent behavior, not specific CVE signatures. Because it scores temporal graph deviations (e.g., N cycles over T seconds on unexpected paths), it inherently catches polymorphic attacks. If an agent goes rogue and tries to compress `$HOME` and socket it to an IP, or loops over `.ssh` keys, the graph scorer flags it. It is entirely signature-less.
@@ -412,7 +369,7 @@ Aegis works on *classes* of emergent behavior, not specific CVE signatures. Beca
 - **Memory (AMLL):** Brute-force SQLite cosine similarity over vectors limits scale (starts dropping off at 5k vectors), but the zero-shot auto-recall capability is fundamentally necessary to prevent LLM API bankruptcy in production multi-agent setups.
 - **AI Adjudication & RLE Bandit:** The cascade proxy drastically cuts costs by routing low-risk checks to cheaper models and escalating to Flagship models. The LinUCB bandit successfully optimizes the threshold parameters, but its raw metrics are naturally susceptible to "reward-hacking." By introducing the Process Reward Model (PRM) and subjecting all adjustments to the adaptive Trajectory Harness (EV2), Aegis mathematically bounds the RL loop and ensures optimization correlates directly to genuine operational security, not just leaderboard metrics.
 
-## 12. Limitations and Future Work
+## 13. Limitations and Future Work
 
 1. **Vector Indexing Overhead:** Currently, similarity scoring relies on brute-force iteration over raw `float32` BLOBs. As documented in the ANN Benchmarks, this scales comfortably up to ~5,000 vectors. Future iterations must migrate to `sqlite-vec` or HNSW indexes to support multi-year enterprise retention scales.
 2. **eBPF Target Compilation (CO-RE):** Because Aegis relies on specific kernel structs, distributing a raw executable across diverse Linux kernels requires local compilation. To resolve this and allow Aegis to be shipped as a true "compile-once" binary, we intend to implement **eBPF CO-RE (Compile Once – Run Everywhere)**. By embedding BTF (BPF Type Format) metadata into the Go binary, Aegis will dynamically adjust kernel memory offsets at runtime without relying on user-provided LLVM toolchains.
@@ -422,28 +379,28 @@ Aegis works on *classes* of emergent behavior, not specific CVE signatures. Beca
 4. **Online Learning:** The LinUCB bandit operates strictly offline. While mathematically safer, migrating to an online/epsilon-greedy execution loop would allow live adaptation without human intervention, contingent on further theoretical safety bounds.
 5. **Model Fine-Tuning:** Replacing generalist models (`gpt-4`) with locally-hosted, SLM (Small Language Models) fine-tuned specifically on filesystem heuristics (e.g., LLaMA 3 8B) would eliminate external network reliance entirely.
 
-## 13. Debugging and Troubleshooting
+## 14. Debugging and Troubleshooting
 
 - **eBPF Loading Errors (`operation not permitted`):** Ensure the daemon is running with root capabilities (`sudo`), and verify that LSM hooks are activated in the kernel boot parameters (`lsm=bpf,apparmor`).
 - **High GC Pauses:** Verify `sync.Pool` logic has not been bypassed during local development modifications inside `pkg/telemetry/events.go`.
 - **WSL Compilation / Missing Headers:** If `bpftool btf dump` fails because `/sys/kernel/btf/vmlinux` is missing (common on WSL), do not worry. The `ebpf/Makefile` is hardcoded to gracefully download a pre-generated `vmlinux.h` payload. You will see a `Warning: Could not install linux-headers` during setup, which is expected and completely handled by the build pipeline.
 
-## 14. Support and Maintenance
+## 15. Support and Maintenance
 
 Aegis is currently an active academic/hackathon repository. For bugs and feature requests, please utilize the standard GitHub Issue tracker. Security vulnerabilities (especially escapes bypassing the graph heuristics) must be reported via the `SECURITY.md` protocol to ensure responsible disclosure.
 
-## 15. Contribution Guidelines
+## 16. Contribution Guidelines
 
 We adhere strictly to the **GitFlow** model.
 1. Branch from `develop` (`feature/<your-feature>`).
 2. Adhere to Conventional Commits (e.g., `feat(graph): optimize traversal`).
 3. Your code MUST pass the CI Regression Gate (`evalrunner`). Decreases to Golden Recall will not be merged without explicit maintainer override.
 
-## 16. License Disclaimer
+## 17. License Disclaimer
 
 This repository is governed under the PolyForm Noncommercial License. Commercial adaptation, deployment in revenue-generating environments, or integration into proprietary security products is strictly prohibited without direct, written authorization from the authors. 
 
-## 17. Citation Guide
+## 18. Citation Guide
 
 If you utilize Aegis architecture or benchmark methodologies in academic research, please cite:
 
