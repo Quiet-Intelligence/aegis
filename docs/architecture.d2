@@ -1,4 +1,4 @@
-direction: right
+direction: down
 
 classes: {
   layer: {
@@ -6,84 +6,87 @@ classes: {
       fill: transparent
       stroke-dash: 5
       stroke-width: 2
-      stroke: "#5c6bc0"
       border-radius: 10
+      font-size: 20
+      bold: true
     }
   }
-  component: {
+  process: {
     style: {
-      border-radius: 5
+      border-radius: 4
       stroke-width: 2
-      fill: "#e8eaf6"
-      stroke: "#3f51b5"
       shadow: true
+      font-size: 16
     }
   }
   database: {
     shape: cylinder
     style: {
-      fill: "#fff3e0"
-      stroke: "#ff9800"
       stroke-width: 2
       shadow: true
+      font-size: 16
     }
   }
-  cloud: {
-    shape: cloud
+  ai_model: {
+    shape: hexagon
     style: {
-      fill: "#e3f2fd"
-      stroke: "#2196f3"
       stroke-width: 2
+      shadow: true
+      font-size: 16
     }
   }
 }
 
 Layer 0 OS Sandbox: {
   class: layer
-  Container: Container (Read-Only Rootfs) {
-    class: component
-  }
+  Container: Container (Read-Only Rootfs) { class: process }
 }
 
 Layer 1 eBPF Kernel Data Plane: {
   class: layer
-  bpf_lsm Hooks: { class: component }
+  bpf_lsm Hooks: { class: process }
   Ring Buffers: { class: database }
   BPF Hash Maps: { class: database }
 }
 
-Layer 2 Go Control Plane (aegisd): {
+Layer 2 Go Control Plane: {
   class: layer
-  Go epoll Readers: { class: component }
-  Temporal Graph Scorer: { class: component }
-  AWS Cedar Policy Engine: { class: component }
-  SQLite Vector DB: { class: database }
-  RLM Cascade Proxy: { class: component }
+  Go epoll Readers: { class: process }
+  Temporal Graph Scorer: { class: process }
+  AWS Cedar Policy Engine: { class: process }
+  Pluggable LLM Adjudicator: { class: ai_model }
 }
 
-Layer 3 Pluggable Adjudication: {
+Memory and Learning: {
   class: layer
-  LLM Provider: { class: cloud }
+  Vector Embedder: { class: process }
+  SQLite Episodic Store: { class: database }
+  LinUCB Bandit: { class: ai_model }
+  Offline PRM Training: { class: process }
 }
 
-# Connections
+# Intra-layer and Inter-layer Connections
 Layer 0 OS Sandbox.Container -> Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks: Syscalls
+
 Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks -> Layer 1 eBPF Kernel Data Plane.Ring Buffers: Stream Events
 Layer 1 eBPF Kernel Data Plane.BPF Hash Maps -> Layer 1 eBPF Kernel Data Plane.bpf_lsm Hooks: Block Signal {
   style.stroke: red
-  style.animated: true
+  style.stroke-width: 3
 }
 
-Layer 1 eBPF Kernel Data Plane.Ring Buffers -> Layer 2 Go Control Plane (aegisd).Go epoll Readers
-Layer 2 Go Control Plane (aegisd).Go epoll Readers -> Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer
-Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer -> Layer 2 Go Control Plane (aegisd).AWS Cedar Policy Engine
-Layer 2 Go Control Plane (aegisd).Temporal Graph Scorer -> Layer 2 Go Control Plane (aegisd).SQLite Vector DB
-Layer 2 Go Control Plane (aegisd).SQLite Vector DB -> Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy
-Layer 2 Go Control Plane (aegisd).AWS Cedar Policy Engine -> Layer 1 eBPF Kernel Data Plane.BPF Hash Maps: Compile Policy {
+Layer 1 eBPF Kernel Data Plane.Ring Buffers -> Layer 2 Go Control Plane.Go epoll Readers
+Layer 2 Go Control Plane.Go epoll Readers -> Layer 2 Go Control Plane.Temporal Graph Scorer: Bounded Channels
+Layer 2 Go Control Plane.Temporal Graph Scorer -> Layer 2 Go Control Plane.AWS Cedar Policy Engine: Flagged Event
+Layer 2 Go Control Plane.AWS Cedar Policy Engine -> Layer 2 Go Control Plane.Pluggable LLM Adjudicator: Policy Miss
+
+Layer 2 Go Control Plane.Pluggable LLM Adjudicator <-> Memory and Learning.Vector Embedder
+Memory and Learning.Vector Embedder <-> Memory and Learning.SQLite Episodic Store
+
+Memory and Learning.Offline PRM Training -> Memory and Learning.LinUCB Bandit: Evaluates Trajectories
+Memory and Learning.LinUCB Bandit -> Layer 2 Go Control Plane.Temporal Graph Scorer: Tunes Thresholds
+
+Layer 2 Go Control Plane.AWS Cedar Policy Engine -> Layer 1 eBPF Kernel Data Plane.BPF Hash Maps: Compile Policy {
   style.stroke: green
+  style.stroke-width: 3
 }
-
-Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy -> Layer 3 Pluggable Adjudication.LLM Provider: Ask
-Layer 3 Pluggable Adjudication.LLM Provider -> Layer 2 Go Control Plane (aegisd).RLM Cascade Proxy: Allow/Deny {
-  style.stroke-dash: 5
-}
+Layer 2 Go Control Plane.Pluggable LLM Adjudicator -> Layer 2 Go Control Plane.AWS Cedar Policy Engine: Deny Decision
