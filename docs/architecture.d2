@@ -1,6 +1,18 @@
 direction: right
 
 classes: {
+  layer: {
+    style: {
+      fill: "#f8f9fa"
+      stroke: "#adb5bd"
+      stroke-dash: 5
+      stroke-width: 2
+      border-radius: 10
+      font-size: 20
+      bold: true
+      shadow: true
+    }
+  }
   kernel: {
     style: {
       fill: "#a8d0e6"
@@ -51,54 +63,72 @@ classes: {
   }
 }
 
-Container: Container\n(Read-Only Rootfs) { class: sandbox }
-
-bpf_lsm Hooks: { class: kernel }
-Ring Buffers: { class: [kernel; database] }
-BPF Hash Maps: { class: [kernel; database] }
-
-Go epoll Readers: { class: control }
-Temporal Graph Scorer: { 
-  class: control 
-  shape: diamond
+"Layer 0 OS Sandbox": {
+  class: layer
+  Container: Container\n(Read-Only Rootfs) { class: sandbox }
 }
-AWS Cedar Policy Engine: { class: control }
 
-SQLite Episodic Store: { class: [memory; database] }
-Vector Embedder: { class: memory }
-LinUCB Bandit: { class: memory }
-Offline PRM Training: { class: memory }
-
-Pluggable LLM Adjudicator: { class: llm }
-
-# Flow
-Container -> bpf_lsm Hooks: Syscalls { style.animated: true }
-
-bpf_lsm Hooks -> Ring Buffers: Stream Events { style.animated: true }
-Ring Buffers -> Go epoll Readers { style.animated: true }
-
-Go epoll Readers -> Temporal Graph Scorer: Bounded Channels { style.animated: true }
-
-Temporal Graph Scorer -> AWS Cedar Policy Engine: Flagged Event
-Temporal Graph Scorer -> Vector Embedder: Vectorize
-
-AWS Cedar Policy Engine -> BPF Hash Maps: Compile Policy {
-  style.stroke: "#27ae60"
-  style.stroke-width: 3
-  style.animated: true
+"Layer 1 eBPF Kernel Data Plane": {
+  class: layer
+  direction: down
+  
+  bpf_lsm Hooks: { class: kernel }
+  Ring Buffers: { class: [kernel; database] }
+  BPF Hash Maps: { class: [kernel; database] }
 }
-AWS Cedar Policy Engine -> Pluggable LLM Adjudicator: Policy Miss
 
-Pluggable LLM Adjudicator -> AWS Cedar Policy Engine: Deny Decision { style.animated: true }
-Pluggable LLM Adjudicator <-> Vector Embedder
+"Layer 2 Go Control Plane": {
+  class: layer
+  direction: down
+  
+  Go epoll Readers: { class: control }
+  Temporal Graph Scorer: { 
+    class: control 
+    shape: diamond
+  }
+  AWS Cedar Policy Engine: { class: control }
+  Pluggable LLM Adjudicator: { class: llm }
+}
 
-Vector Embedder <-> SQLite Episodic Store
+"Memory & Learning (AMLL & PRM)": {
+  class: layer
+  direction: down
+  
+  Vector Embedder: { class: memory }
+  SQLite Episodic Store: { class: [memory; database] }
+  LinUCB Bandit: { class: memory }
+  Offline PRM Training: { class: memory }
+}
 
-Offline PRM Training -> LinUCB Bandit: Evaluates Trajectories
-LinUCB Bandit -> Temporal Graph Scorer: Tunes Thresholds
+# Intra-layer and Inter-layer Connections
+"Layer 0 OS Sandbox".Container -> "Layer 1 eBPF Kernel Data Plane"."bpf_lsm Hooks": Syscalls { style.animated: true }
 
-BPF Hash Maps -> bpf_lsm Hooks: Block Signal {
+"Layer 1 eBPF Kernel Data Plane"."bpf_lsm Hooks" -> "Layer 1 eBPF Kernel Data Plane"."Ring Buffers": Stream Events { style.animated: true }
+"Layer 1 eBPF Kernel Data Plane"."BPF Hash Maps" -> "Layer 1 eBPF Kernel Data Plane"."bpf_lsm Hooks": Block Signal {
   style.stroke: "#c0392b"
   style.stroke-width: 3
   style.animated: true
 }
+
+"Layer 1 eBPF Kernel Data Plane"."Ring Buffers" -> "Layer 2 Go Control Plane"."Go epoll Readers": { style.animated: true }
+"Layer 2 Go Control Plane"."Go epoll Readers" -> "Layer 2 Go Control Plane"."Temporal Graph Scorer": Bounded Channels { style.animated: true }
+
+"Layer 2 Go Control Plane"."Temporal Graph Scorer" -> "Layer 2 Go Control Plane"."AWS Cedar Policy Engine": Flagged Event
+"Layer 2 Go Control Plane"."Temporal Graph Scorer" -> "Memory & Learning (AMLL & PRM)"."Vector Embedder": Vectorize
+
+"Layer 2 Go Control Plane"."AWS Cedar Policy Engine" -> "Layer 1 eBPF Kernel Data Plane"."BPF Hash Maps": Compile Policy {
+  style.stroke: "#27ae60"
+  style.stroke-width: 3
+  style.animated: true
+}
+"Layer 2 Go Control Plane"."AWS Cedar Policy Engine" -> "Layer 2 Go Control Plane"."Pluggable LLM Adjudicator": Policy Miss
+
+"Layer 2 Go Control Plane"."Pluggable LLM Adjudicator" -> "Layer 2 Go Control Plane"."AWS Cedar Policy Engine": Deny Decision { style.animated: true }
+"Layer 2 Go Control Plane"."Pluggable LLM Adjudicator" -> "Memory & Learning (AMLL & PRM)"."Vector Embedder"
+"Memory & Learning (AMLL & PRM)"."Vector Embedder" -> "Layer 2 Go Control Plane"."Pluggable LLM Adjudicator"
+
+"Memory & Learning (AMLL & PRM)"."Vector Embedder" -> "Memory & Learning (AMLL & PRM)"."SQLite Episodic Store"
+"Memory & Learning (AMLL & PRM)"."SQLite Episodic Store" -> "Memory & Learning (AMLL & PRM)"."Vector Embedder"
+
+"Memory & Learning (AMLL & PRM)"."Offline PRM Training" -> "Memory & Learning (AMLL & PRM)"."LinUCB Bandit": Evaluates Trajectories
+"Memory & Learning (AMLL & PRM)"."LinUCB Bandit" -> "Layer 2 Go Control Plane"."Temporal Graph Scorer": Tunes Thresholds
