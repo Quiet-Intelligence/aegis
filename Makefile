@@ -1,4 +1,4 @@
-.PHONY: all ebpf daemon cli tui build clean run test eval install-deps everything
+.PHONY: all ebpf daemon cli tui build clean run test eval eval-trajectory bench install-deps everything vet
 
 # Define paths and variables
 EBPF_DIR = ebpf
@@ -39,7 +39,7 @@ install-deps:
 	@echo "==> Installing host dependencies..."
 	bash scripts/install_deps.sh
 
-everything: install-deps build test-cedar eval eval-trajectory prm-train metrics
+everything: install-deps build test-cedar eval eval-trajectory bench prm-train metrics
 	@echo "==> Setup complete! Launching TUI..."
 	./$(BIN_DIR)/aegis-tui
 
@@ -54,9 +54,16 @@ run: build
 	@echo "==> Starting aegisd..."
 	sudo ./$(BIN_DIR)/aegisd
 
+vet:
+	go vet ./...
+
 test:
 	@echo "==> Running Go tests..."
 	go test ./...
+
+bench:
+	@echo "==> Running Go benchmarks (scorer, episodic recall, Cedar compile, telemetry hot paths)..."
+	python3 scripts/collect_bench.py
 
 eval:
 	@echo "==> Running Evals Harness (EV1 - Static Golden)..."

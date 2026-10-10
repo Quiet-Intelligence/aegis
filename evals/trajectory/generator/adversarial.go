@@ -97,8 +97,8 @@ func (g *Generator) nextAction() environment.Action {
 			Target: fmt.Sprintf("fake_worktree_%d", g.stepsTaken),
 		}
 	case StrategySlowDrip:
-		// Alternate between benign touch and malicious worktree
-		if g.stepsTaken%3 == 0 {
+		// Two benign touches for every malicious worktree: the first malicious step is the third action.
+		if (g.stepsTaken+1)%3 == 0 {
 			return environment.Action{
 				Type:   environment.ActionGitWorktree,
 				Target: fmt.Sprintf("slow_worktree_%d", g.stepsTaken),
@@ -109,8 +109,8 @@ func (g *Generator) nextAction() environment.Action {
 			Target: fmt.Sprintf("benign_file_%d.txt", g.stepsTaken),
 		}
 	case StrategyBenignBlend:
-		// Heavy blending: many benign actions for every malicious one
-		if g.stepsTaken%10 == 0 {
+		// Heavy blending: nine benign actions for every malicious one (first malicious step is the tenth)
+		if (g.stepsTaken+1)%10 == 0 {
 			return environment.Action{
 				Type:   environment.ActionGitWorktree,
 				Target: fmt.Sprintf("stealth_worktree_%d", g.stepsTaken),

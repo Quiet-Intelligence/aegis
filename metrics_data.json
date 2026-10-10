@@ -1,93 +1,121 @@
 {
-  "ann_benchmarks": [
-    {
-      "latency_ms": 0.012,
-      "vectors": 10
-    },
-    {
-      "latency_ms": 0.145,
-      "vectors": 100
-    },
-    {
-      "latency_ms": 2.45,
-      "vectors": 1000
-    },
-    {
-      "latency_ms": 14.8,
-      "vectors": 5000
-    },
-    {
-      "latency_ms": 53.2,
-      "vectors": 50000
-    }
-  ],
   "evals": {
     "auto_recall_precision": 1,
+    "cases": 6,
     "golden_f1": 1,
     "golden_fnr": 0,
     "golden_fpr": 0,
     "golden_precision": 1,
     "golden_recall": 1
   },
-  "throughput": {
-    "drops": 0,
-    "events_per_sec": 5120.4,
-    "p50_ms": 0.045,
-    "p95_ms": 0.112,
-    "p99_ms": 0.42
-  },
-  "trajectory_evals": {
-    "adversarial_runs": 20,
-    "mean_steps_survived": 14.5,
-    "variance_steps": 32.4,
-    "legitimate_workflows": 10,
-    "over_refusals": 1,
-    "task_success_rate": 0.9,
-    "survival_distribution": [
-      1,
-      2,
-      4,
-      3,
-      5,
-      8,
-      12,
-      10,
-      15,
-      12,
-      20,
-      22,
-      18,
-      15,
-      25,
-      28,
-      30,
-      26,
-      32,
-      2
-    ]
-  },
   "prm": {
     "labeled_steps_used": 2,
     "r2_score": -0.0029
   },
-  "provider_benchmarks": [
-    {
-      "provider": "Groq (Llama-3-70b)",
-      "latency_ms": 250,
-      "cost_per_1k": 0.0006
-    },
-    {
-      "provider": "OpenAI (GPT-4o)",
-      "latency_ms": 850,
-      "cost_per_1k": 0.005
-    },
-    {
-      "provider": "Local (Llama-3-8b)",
-      "latency_ms": 1200,
-      "cost_per_1k": 0.0
+  "trajectory_evals": {
+    "adversarial_runs": 20,
+    "legitimate_workflows": 10,
+    "mean_steps_survived": 9.2,
+    "over_refusals": 1,
+    "survival_distribution": [
+      1,
+      3,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+    ],
+    "task_success_rate": 0.9,
+    "variance_steps": 5.859999999999999
+  },
+  "benchmarks": {
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "count": 5,
+    "results": {
+      "BenchmarkScorerProcessEvent/file_open_in_workspace": {
+        "ns_per_op": 3748.0,
+        "bytes_per_op": 1137.0,
+        "allocs_per_op": 20
+      },
+      "BenchmarkScorerProcessEvent/exec_benign": {
+        "ns_per_op": 4383.0,
+        "bytes_per_op": 1225.0,
+        "allocs_per_op": 25
+      },
+      "BenchmarkScorerProcessEvent/file_open_flagged_outside_workspace": {
+        "ns_per_op": 4495.0,
+        "bytes_per_op": 1113.0,
+        "allocs_per_op": 20
+      },
+      "BenchmarkDecodeFileOpen": {
+        "ns_per_op": 0.158,
+        "bytes_per_op": 0.0,
+        "allocs_per_op": 0
+      },
+      "BenchmarkEventPoolGetPut": {
+        "ns_per_op": 8.946,
+        "bytes_per_op": 0.0,
+        "allocs_per_op": 0
+      },
+      "BenchmarkFileOpenGetPath": {
+        "ns_per_op": 21.72,
+        "bytes_per_op": 48.0,
+        "allocs_per_op": 1
+      },
+      "BenchmarkEventAlloc_NoPool": {
+        "ns_per_op": 0.144,
+        "bytes_per_op": 0.0,
+        "allocs_per_op": 0
+      },
+      "BenchmarkEventAlloc_Pool": {
+        "ns_per_op": 8.929,
+        "bytes_per_op": 0.0,
+        "allocs_per_op": 0
+      },
+      "BenchmarkQuery/Vectors_10": {
+        "ns_per_op": 22741.0,
+        "bytes_per_op": 34840.0,
+        "allocs_per_op": 168
+      },
+      "BenchmarkQuery/Vectors_100": {
+        "ns_per_op": 184679.0,
+        "bytes_per_op": 359643.0,
+        "allocs_per_op": 1568
+      },
+      "BenchmarkQuery/Vectors_1000": {
+        "ns_per_op": 1829727.0,
+        "bytes_per_op": 3622712.0,
+        "allocs_per_op": 16458
+      },
+      "BenchmarkQuery/Vectors_5000": {
+        "ns_per_op": 11065862.0,
+        "bytes_per_op": 19949551.0,
+        "allocs_per_op": 91633
+      },
+      "BenchmarkQuery/Vectors_20000": {
+        "ns_per_op": 47546119.0,
+        "bytes_per_op": 85250136.0,
+        "allocs_per_op": 392161
+      },
+      "BenchmarkCompileToBPF": {
+        "ns_per_op": 7086.0,
+        "bytes_per_op": 13513.0,
+        "allocs_per_op": 91
+      }
     }
-  ],
-  "cedar_benchmarks": {
-    "compilation_latency_us": 15.4
   }
 }

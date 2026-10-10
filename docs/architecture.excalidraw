@@ -1,0 +1,853 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "excalidraw-cli",
+  "elements": [
+    {
+      "id": "title",
+      "type": "text",
+      "x": 20,
+      "y": 8,
+      "strokeColor": "#212529",
+      "roughness": 0,
+      "text": "Aegis: behavioural governance for autonomous agents",
+      "fontSize": 30,
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z0",
+      "type": "rectangle",
+      "x": 10,
+      "y": 70,
+      "width": 330,
+      "height": 690,
+      "backgroundColor": "#f1f3f5",
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 55,
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z0_t",
+      "type": "text",
+      "x": 28,
+      "y": 82,
+      "strokeColor": "#868e96",
+      "roughness": 0,
+      "text": "Layer 0  Container",
+      "fontSize": 22,
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z1",
+      "type": "rectangle",
+      "x": 360,
+      "y": 70,
+      "width": 400,
+      "height": 690,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 55,
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z1_t",
+      "type": "text",
+      "x": 378,
+      "y": 82,
+      "strokeColor": "#e03131",
+      "roughness": 0,
+      "text": "Layer 1  Kernel (eBPF LSM, C)",
+      "fontSize": 22,
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z2",
+      "type": "rectangle",
+      "x": 780,
+      "y": 70,
+      "width": 1380,
+      "height": 690,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "opacity": 55,
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "z2_t",
+      "type": "text",
+      "x": 798,
+      "y": 82,
+      "strokeColor": "#1971c2",
+      "roughness": 0,
+      "text": "Layer 2  aegisd control plane (Go)",
+      "fontSize": 22,
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "agent",
+      "type": "rectangle",
+      "x": 30,
+      "y": 150,
+      "width": 290,
+      "height": 110,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Autonomous agent\n(cgroup-scoped\nprocess tree)"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "l0",
+      "type": "rectangle",
+      "x": 30,
+      "y": 330,
+      "width": 290,
+      "height": 150,
+      "backgroundColor": "#f1f3f5",
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Read-only rootfs\ndropped capabilities\nseccomp profile\n/workspace mount"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "hooks",
+      "type": "rectangle",
+      "x": 380,
+      "y": 140,
+      "width": 360,
+      "height": 130,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "LSM hooks\nfile_open, socket_connect,\nbprm_check_security"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "rb",
+      "type": "rectangle",
+      "x": 380,
+      "y": 330,
+      "width": 360,
+      "height": 110,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "BPF ring buffer\nfixed-size event structs"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "maps",
+      "type": "rectangle",
+      "x": 380,
+      "y": 610,
+      "width": 360,
+      "height": 130,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "BPF maps (enforcement)\ndenied_hashes, denied_paths\nexec gate"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "off",
+      "type": "rectangle",
+      "x": 800,
+      "y": 140,
+      "width": 650,
+      "height": 110,
+      "backgroundColor": "#f1f3f5",
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Offline: LinUCB bandit tunes thresholds (reward FN -5, FP -1)\nEvals: EV1 golden gate, EV2 stateful trajectories"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.571Z",
+      "version": 1
+    },
+    {
+      "id": "mem",
+      "type": "rectangle",
+      "x": 1500,
+      "y": 130,
+      "width": 310,
+      "height": 130,
+      "backgroundColor": "#c5f6fa",
+      "strokeColor": "#0c8599",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Episodic memory (SQLite)\nexec: exact SHA-256 match\nother: cosine > 0.95\nfloat32 BLOB embeddings"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.571Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "tui",
+      "type": "rectangle",
+      "x": 1850,
+      "y": 140,
+      "width": 310,
+      "height": 110,
+      "backgroundColor": "#f1f3f5",
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "aegis-tui / aegisctl\naudit view, approve,\nrevoke"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "rd",
+      "type": "rectangle",
+      "x": 800,
+      "y": 325,
+      "width": 310,
+      "height": 120,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Telemetry reader\ncilium/ebpf, sync.Pool,\nbounded channels"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "sc",
+      "type": "rectangle",
+      "x": 1150,
+      "y": 325,
+      "width": 310,
+      "height": 120,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Temporal graph scorer\nrules + EMA baseline\ndeviation"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "raa",
+      "type": "rectangle",
+      "x": 1500,
+      "y": 325,
+      "width": 310,
+      "height": 120,
+      "backgroundColor": "#f3d9fa",
+      "strokeColor": "#9c36b5",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Retrieval-augmented\nadjudicator"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "enf",
+      "type": "rectangle",
+      "x": 1850,
+      "y": 325,
+      "width": 310,
+      "height": 120,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Policy enforcer\naudit.jsonl, deny ->\nstored policy"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "gate",
+      "type": "rectangle",
+      "x": 800,
+      "y": 520,
+      "width": 660,
+      "height": 90,
+      "backgroundColor": "#f1f3f5",
+      "strokeColor": "#868e96",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Exec gate: seccomp user-notification supervisor\nholds an exec until the adjudicator decides"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "llm",
+      "type": "rectangle",
+      "x": 1500,
+      "y": 515,
+      "width": 310,
+      "height": 110,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "LLM cascade\ncheap -> flagship model"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "ced",
+      "type": "rectangle",
+      "x": 1850,
+      "y": 610,
+      "width": 310,
+      "height": 130,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "label": {
+        "text": "Cedar-subset compiler\nforbid rules -> map entries\n(binary_hash, path prefix)"
+      },
+      "roundness": {
+        "type": 3
+      },
+      "fillStyle": "solid",
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1
+    },
+    {
+      "id": "mv1rmsecwefmzow165b",
+      "type": "arrow",
+      "x": 328,
+      "y": 205,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          44,
+          2.842170943040401e-14
+        ]
+      ],
+      "startBinding": {
+        "elementId": "agent",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "hooks",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec0c86e77xvyqa",
+      "type": "arrow",
+      "x": 560,
+      "y": 278,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          44
+        ]
+      ],
+      "startBinding": {
+        "elementId": "hooks",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "rb",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec7iw7599u5ea",
+      "type": "arrow",
+      "x": 748,
+      "y": 385,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          44,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "rb",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "rd",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec2kbw9990fyx",
+      "type": "arrow",
+      "x": 1118,
+      "y": 385,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          24,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "rd",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "sc",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsecram1lsn34k",
+      "type": "arrow",
+      "x": 1468,
+      "y": 385,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          24,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "sc",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "raa",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec7ecnpztmkat",
+      "type": "arrow",
+      "x": 1655,
+      "y": 317,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "label": {
+        "text": "recall"
+      },
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          -49
+        ]
+      ],
+      "startBinding": {
+        "elementId": "raa",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "mem",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsecxced4fj4rcb",
+      "type": "arrow",
+      "x": 1655,
+      "y": 453,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "label": {
+        "text": "miss"
+      },
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          54
+        ]
+      ],
+      "startBinding": {
+        "elementId": "raa",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "llm",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsecnzzi4hyvdbi",
+      "type": "arrow",
+      "x": 1818,
+      "y": 385,
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          24,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "raa",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "enf",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec1ccit6qud1o",
+      "type": "arrow",
+      "x": 2005,
+      "y": 317,
+      "strokeColor": "#495057",
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "roughness": 0,
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          -59
+        ]
+      ],
+      "startBinding": {
+        "elementId": "enf",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "tui",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsecfqsaf8f1lmc",
+      "type": "arrow",
+      "x": 2005,
+      "y": 453,
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "label": {
+        "text": "deny"
+      },
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          149
+        ]
+      ],
+      "startBinding": {
+        "elementId": "enf",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "ced",
+        "focus": 0,
+        "gap": 8
+      }
+    },
+    {
+      "id": "mv1rmsec2sov7nwsofz",
+      "type": "arrow",
+      "x": 1842,
+      "y": 675,
+      "strokeColor": "#e03131",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "label": {
+        "text": "sync"
+      },
+      "endArrowhead": "arrow",
+      "elbowed": false,
+      "createdAt": "2026-10-10T02:19:01.572Z",
+      "updatedAt": "2026-10-10T02:19:01.572Z",
+      "version": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -1094,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "ced",
+        "focus": 0,
+        "gap": 8
+      },
+      "endBinding": {
+        "elementId": "maps",
+        "focus": 0,
+        "gap": 8
+      }
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  }
+}

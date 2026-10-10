@@ -47,3 +47,8 @@ models/
 
 # External Documents
 references/
+
+# local artifacts
+._*
+vmlinux.h.tmp
+ebpf/vmlinux.h.tmp

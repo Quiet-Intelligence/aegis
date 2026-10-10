@@ -3,7 +3,6 @@ package episodic
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -14,9 +13,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// H-11 ANN threshold documentation:
-// Switch to ANN indexing (e.g. sqlite-vec or hnsw) above 50,000 vectors per repo,
-// measured on Intel i7 / GitHub Actions runners, where p95 query latency exceeds 50ms.
+// Brute-force recall scans every stored embedding of the repository. Measured on an i7-14650HX (384-d float32 BLOBs,
+// in-memory SQLite): about 24 us at 10 vectors, 1.8 ms at 1,000, 11 ms at 5,000 and 47 ms at 20,000 per query, i.e. linear,
+// ~2.3 us per stored vector. Move to an ANN index (sqlite-vec / HNSW) before a repository accumulates tens of thousands of cases.
 
 func BenchmarkQuery(b *testing.B) {
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -36,7 +35,7 @@ func BenchmarkQuery(b *testing.B) {
 	store := NewStore(db, &embed.MockEmbedder{})
 	_ = store
 
-	sizes := []int{10, 100, 1000, 5000}
+	sizes := []int{10, 100, 1000, 5000, 20000}
 	for _, size := range sizes {
 		// Populate mock vectors
 		for i := 0; i < size; i++ {
@@ -44,7 +43,7 @@ func BenchmarkQuery(b *testing.B) {
 			for j := range vec {
 				vec[j] = rand.Float32()
 			}
-			vecBytes, _ := json.Marshal(vec)
+			vecBytes := encodeVector(vec)
 			res, _ := db.Exec("INSERT INTO embeddings (vector, dims) VALUES (?, 384)", vecBytes)
 			embID, _ := res.LastInsertId()
 			db.Exec("INSERT INTO flagged_events (session_id, repo_id, event_context_json, embedding_id, decision, rationale, decided_at, decided_by) VALUES ('sess', ?, '{}', ?, 'Allow', 'mock', ?, 'auto_recall')", repoID, embID, time.Now())

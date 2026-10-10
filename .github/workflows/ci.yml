@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  go:
+    name: Build, vet and test (Go)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build everything (catches references to undefined symbols, e.g. in cmd/evalrunner)
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./... -race -count=1
+
+  evals:
+    name: Evals (EV1 golden gate + EV2 trajectories, mock adjudicator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: EV1 golden set (fails below 0.95 precision/recall)
+        run: go run ./cmd/evalrunner
+      - name: EV2 stateful trajectories
+        run: go run ./cmd/evalrunner -trajectory
+
+  ebpf:
+    name: Compile eBPF LSM programs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang and libbpf headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang llvm libbpf-dev
+      - name: Build objects (uses the bundled vmlinux_fallback.h when the runner kernel exposes no BTF)
+        run: make -C ebpf
+      - name: Check the objects exist and contain the LSM programs
+        run: |
+          for o in file_open socket_connect exec_hash; do
+            test -s ebpf/$o.bpf.o
+            llvm-objdump -h ebpf/$o.bpf.o | grep -q "lsm/"
+          done

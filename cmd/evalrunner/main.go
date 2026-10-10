@@ -205,6 +205,7 @@ func main() {
 		var metrics map[string]interface{}
 		if err := json.Unmarshal(bMetrics, &metrics); err == nil {
 			if evals, ok := metrics["evals"].(map[string]interface{}); ok {
+				evals["cases"] = len(cases)
 				evals["golden_precision"] = precision
 				evals["golden_recall"] = recall
 				evals["golden_f1"] = f1

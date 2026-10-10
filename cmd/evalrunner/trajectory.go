@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -151,6 +152,16 @@ func RunTrajectoryEvals(db *sql.DB, repoID int64, baseLLM adjudicator.Adjudicato
 	fmt.Printf("Over-Refusals     : %d (%.2f%%)\n", overRefusals, overRefusalRate*100)
 	fmt.Printf("Task Success Rate : %.2f%%\n", taskSuccessRate*100)
 
+	writeTrajectoryMetrics(map[string]interface{}{
+		"adversarial_runs":      N,
+		"mean_steps_survived":   mean,
+		"variance_steps":        variance,
+		"survival_distribution": survivedSteps,
+		"legitimate_workflows":  len(legitimateWorkflows),
+		"over_refusals":         overRefusals,
+		"task_success_rate":     taskSuccessRate,
+	})
+
 	// Scaffolding Disclosure & Cost (EV2-8, EV2-9, EV2-10)
 	// Aegis requires strict transparency regarding the exact underlying LLM used for evaluations.
 	// Since the evals harness leverages the dynamic `aegis.env` (similar to the runtime daemon),
@@ -171,4 +182,23 @@ func RunTrajectoryEvals(db *sql.DB, repoID int64, baseLLM adjudicator.Adjudicato
 	fmt.Printf("Cost Per Decision     : ~$0.001 (LLM Tier)\n")
 	fmt.Printf("Latency Per Decision  : ~400ms (LLM Tier), ~10ms (Auto-Recall)\n")
 	fmt.Println("==================================================")
+}
+
+// writeTrajectoryMetrics records the measured EV2 results in metrics_data.json so the README table is generated from
+// what this run actually produced.
+func writeTrajectoryMetrics(section map[string]interface{}) {
+	const file = "metrics_data.json"
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return
+	}
+	var metrics map[string]interface{}
+	if err := json.Unmarshal(raw, &metrics); err != nil {
+		return
+	}
+	metrics["trajectory_evals"] = section
+	if out, err := json.MarshalIndent(metrics, "", "  "); err == nil {
+		_ = os.WriteFile(file, out, 0644)
+		fmt.Println("Updated metrics_data.json with latest trajectory results.")
+	}
 }

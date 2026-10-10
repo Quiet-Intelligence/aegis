@@ -3,8 +3,10 @@ package episodic
 import (
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"math"
+	"sort"
 	"time"
 
 	"aegis/internal/memory/embed"
@@ -13,10 +15,44 @@ import (
 )
 
 type PastCase struct {
-	ID        int64
-	Decision  adjudicator.Decision
-	Rationale string
-	DecidedBy string
+	ID         int64
+	Decision   adjudicator.Decision
+	Rationale  string
+	DecidedBy  string
+	Similarity float32 `json:",omitempty"` // cosine similarity to the query (approximate recall only)
+}
+
+// encodeVector stores an embedding as a compact little-endian float32 BLOB (4 bytes per dimension).
+func encodeVector(v []float32) []byte {
+	out := make([]byte, 4*len(v))
+	for i, f := range v {
+		binary.LittleEndian.PutUint32(out[4*i:], math.Float32bits(f))
+	}
+	return out
+}
+
+// decodeVector reads a stored embedding into dst (reused to avoid per-row allocations). Rows written by older
+// versions hold a JSON array; both encodings are accepted so existing databases keep working.
+func decodeVector(b []byte, dst []float32) ([]float32, error) {
+	if len(b) > 0 && b[0] == '[' {
+		var legacy []float32
+		if err := json.Unmarshal(b, &legacy); err != nil {
+			return nil, err
+		}
+		return legacy, nil
+	}
+	if len(b)%4 != 0 {
+		return nil, sql.ErrNoRows
+	}
+	n := len(b) / 4
+	if cap(dst) < n {
+		dst = make([]float32, n)
+	}
+	dst = dst[:n]
+	for i := range dst {
+		dst[i] = math.Float32frombits(binary.LittleEndian.Uint32(b[4*i:]))
+	}
+	return dst, nil
 }
 
 // QueryExactExec recalls an exec decision only when the complete command
@@ -87,9 +123,7 @@ func (s *Store) RecordCase(ctx context.Context, repoID int64, sessionID string, 
 	}
 	defer tx.Rollback()
 
-	vecBytes, _ := json.Marshal(vector)
-
-	res, err := tx.Exec(`INSERT INTO embeddings (vector, dims) VALUES (?, ?)`, vecBytes, len(vector))
+	res, err := tx.Exec(`INSERT INTO embeddings (vector, dims) VALUES (?, ?)`, encodeVector(vector), len(vector))
 	if err != nil {
 		return err
 	}
@@ -121,6 +155,8 @@ func (s *Store) RecordTrace(ctx context.Context, sessionID string, repoID int64,
 	return err
 }
 
+// Query returns up to topK past decisions whose embedding has cosine similarity > 0.95 with queryVector,
+// ordered by decreasing similarity. It scans every stored embedding of the repository (brute force, O(N * dims)).
 func (s *Store) Query(ctx context.Context, repoID int64, queryVector []float32, topK int) ([]PastCase, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT fe.id, fe.decision, fe.rationale, fe.decided_by, e.vector 
@@ -133,6 +169,7 @@ func (s *Store) Query(ctx context.Context, repoID int64, queryVector []float32, 
 	defer rows.Close()
 
 	var cases []PastCase
+	var buf []float32
 
 	for rows.Next() {
 		var id int64
@@ -142,22 +179,25 @@ func (s *Store) Query(ctx context.Context, repoID int64, queryVector []float32, 
 			continue
 		}
 
-		var vec []float32
-		if err := json.Unmarshal(vecBytes, &vec); err != nil {
+		vec, err := decodeVector(vecBytes, buf)
+		if err != nil {
 			continue
 		}
+		buf = vec[:0]
 
 		sim := cosineSimilarity(queryVector, vec)
 		if sim > 0.95 {
 			cases = append(cases, PastCase{
-				ID:        id,
-				Decision:  adjudicator.Decision(dec),
-				Rationale: rat,
-				DecidedBy: by,
+				ID:         id,
+				Decision:   adjudicator.Decision(dec),
+				Rationale:  rat,
+				DecidedBy:  by,
+				Similarity: sim,
 			})
 		}
 	}
 
+	sort.SliceStable(cases, func(i, j int) bool { return cases[i].Similarity > cases[j].Similarity })
 	if len(cases) > topK {
 		cases = cases[:topK]
 	}

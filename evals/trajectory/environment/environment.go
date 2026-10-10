@@ -23,6 +23,9 @@ const (
 	ActionWrite       ActionType = "write"
 	ActionGitWorktree ActionType = "git_worktree_add"
 	ActionGitInit     ActionType = "git_init"
+	ActionChmod       ActionType = "chmod"
+	ActionGitAdd      ActionType = "git_add"
+	ActionGitCommit   ActionType = "git_commit"
 )
 
 type Action struct {
@@ -105,6 +108,24 @@ func (e *Environment) simulateAction(a Action) []telemetry.Event {
 			},
 		})
 		e.setPath(&events[0], "/usr/bin/git")
+	case ActionChmod, ActionGitAdd, ActionGitCommit:
+		// Ordinary developer commands: one exec of the tool with its sub-command as the first argument.
+		binary, sub := "/usr/bin/git", "add"
+		switch a.Type {
+		case ActionChmod:
+			binary, sub = "/usr/bin/chmod", "+x"
+		case ActionGitCommit:
+			sub = "commit"
+		}
+		events = append(events, telemetry.Event{
+			Type: "exec",
+			Exec: &telemetry.ExecEvent{
+				Pid:         e.pid,
+				TimestampNs: nowNs,
+			},
+		})
+		e.setPath(&events[0], binary)
+		e.setArgs(&events[0], sub)
 	case ActionGitWorktree:
 		events = append(events, telemetry.Event{
 			Type: "exec",
