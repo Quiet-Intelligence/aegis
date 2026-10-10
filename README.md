@@ -37,7 +37,12 @@ Static isolation (containers, seccomp, AppArmor) decides each action on its own.
 ## 2. Evidence
 * **Tests**: 57 Go test functions across the scorer, adjudicator, episodic memory, embedder, Cedar compiler, telemetry back-pressure, exec gate, provider layer and TUI; run with `-race` in CI.
 * **CI** (`.github/workflows`): build + vet + race tests; the eval gate (EV1 must stay >= 0.95 precision/recall; EV2 trajectories run); compilation of the three eBPF programs with clang and a check that they contain LSM sections; Cedar schema validation; held-out-set contamination guards.
-* **Live validation** on a Linux host (kernel hooks blocking, TUI, exec gate) was performed by the team and is *not* part of CI, which has no BPF-LSM kernel. Everything below the kernel boundary is exercised by the automated suites.
+* **Live validation** on Linux hosts (native Linux and WSL2: kernel hooks blocking, TUI, exec gate) was performed by the team and is *not* part of CI, which has no BPF-LSM kernel. Everything below the kernel boundary is exercised by the automated suites. A recorded run is below.
+* **Case study, BunnyHijack.** In a red-team evaluation Aegis was run against [BunnyHijack](https://github.com/X3r0Day/BunnyHijack-PoC), a proof of concept for a trust-boundary flaw in the `bun` package manager (the maintainer disputes its classification as a vulnerability). Aegis flagged the anomalous post-exploitation system calls and blocked the payload at the syscall layer, along with other unauthorised commands issued in the same session; the video shows it. No signature for this exploit exists in the repository; detection comes from the behavioural graph and the exec gate.
+
+**Demonstration (full run):**
+
+<video src="assets/demo.mp4" controls="controls" width="100%"></video>
 * **Results below are generated** by `make eval eval-trajectory bench metrics` from real runs; nothing is typed in by hand.
 
 <!-- METRICS_START -->
